@@ -4,6 +4,7 @@
 import { network } from "hardhat";
 import fs from "fs";
 import path from "path";
+import "dotenv/config";
 
 type KeyRecord = {
     sgdId: string;
@@ -40,7 +41,7 @@ function saveKeyStore(data: KeyStore) {
 
 async function main() {
     const { ethers } = await network.connect();
-    const sgdId = process.argv[2] || "SGD-0001";
+    const sgdId = process.env.SGD_ID || "SGD-0001";
 
     const addresses = JSON.parse(
         fs.readFileSync(addressesPath, "utf8")
@@ -53,7 +54,7 @@ async function main() {
         throw new Error(`No keyStore record found for sgdId=${sgdId}`);
     }
 
-    const [registrar, initialOwner] = await ethers.getSigners();
+    const [registrar] = await ethers.getSigners();
 
     const registry = await ethers.getContractAt(
         "GDMRegistry", 
@@ -64,7 +65,7 @@ async function main() {
     const nextId = await registry.nextTokenId();
 
     const input = {
-        initialOwner: initialOwner.address,
+        initialOwner: registrar.address,
         sgdId: record.sgdId,
         rgdId: `RGD-${record.sgdId}`,
         cid: record.cid,
