@@ -20,7 +20,15 @@ type KeyStore = {
     records: KeyRecord[];
 };
 
-const keyStorePath = path.join(__dirname, "..", "backend", "keyStore.json");
+const keyStorePath = path.resolve(
+    process.cwd(),
+    "../server/secrets/keyStore.json"
+);
+
+const addressesPath = path.resolve(
+    process.cwd(),
+    "../server/src/config/contract-addresses.json"
+);
 
 function loadKeyStore(): KeyStore {
     return JSON.parse(fs.readFileSync(keyStorePath, "utf8"));
@@ -35,7 +43,7 @@ async function main() {
     const sgdId = process.argv[2] || "SGD-0001";
 
     const addresses = JSON.parse(
-        fs.readFileSync(path.join(__dirname, "..", "backend", "contract-addresses.json"), "utf8")
+        fs.readFileSync(addressesPath, "utf8")
     );
 
     const store = loadKeyStore();
@@ -47,7 +55,11 @@ async function main() {
 
     const [registrar, initialOwner] = await ethers.getSigners();
 
-    const registry = await ethers.getContractAt("GDMRegistry", addresses.GDMREGISTRY_ADDRESS, registrar);
+    const registry = await ethers.getContractAt(
+        "GDMRegistry", 
+        addresses.GDMREGISTRY_ADDRESS, 
+        registrar
+    );
 
     const nextId = await registry.nextTokenId();
 

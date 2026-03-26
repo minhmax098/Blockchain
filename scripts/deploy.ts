@@ -34,8 +34,13 @@ async function main() {
         GDMREGISTRY_ADDRESS: registryAddress,
     };
 
-    const outPath = path.join(__dirname, "..", "backend", "contract-addresses.json");
+    const outPath = path.resolve(
+        process.cwd(),
+        "../server/src/config/contract-addresses.json"
+    );
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, JSON.stringify(out, null, 2));
+    console.log("Contract addresses saved to:", outPath);
 }
 
 main().catch((error) => {
