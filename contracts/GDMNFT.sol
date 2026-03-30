@@ -35,7 +35,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         string sgdId;
         string rgdId;
         string cid;
-        address registeredOwner;
+        address registeredOwner; // owner at initial registration
         string accessCondition;
         uint256 price;
         uint256 collectionDate;
@@ -68,8 +68,8 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         bool active;
     }
 
-    mapping(uint256 => SGDRecord) private _records;
-    mapping(uint256 => mapping(address => bool)) public hasPurchased;
+    mapping(uint256 => SGDRecord) private _records; // save all records by tokenId
+    mapping(uint256 => mapping(address => bool)) public hasPurchased; // each token, addressed purchased full access = true
 
     event RegistrarUpdated(address indexed newRegistrar);
     event SGDRegistered(
@@ -122,6 +122,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         emit RegistrarUpdated(newRegistrar);
     }
 
+    // function central of contract
     function registerSGD(
         RegisterInput calldata input
     ) external onlyRegistrar returns (uint256 tokenId) {
@@ -166,6 +167,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         );
     }
 
+    // return PublicRecord
     function getPublicRecord(
         uint256 tokenId
     ) external view recordExists(tokenId) returns (PublicRecord memory) {
@@ -189,6 +191,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         });
     }
 
+    // retutn full SGDRecord 
     function getFullRecord(
         uint256 tokenId
     ) external view recordExists(tokenId) returns (SGDRecord memory) {
@@ -212,6 +215,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         return _records[tokenId].cid;
     }
 
+    // logic for purchasing full access 
     function purchaseFullAccess(
         uint256 tokenId
     ) external payable nonReentrant recordExists(tokenId) {
@@ -230,6 +234,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         emit FullAccessPurchased(tokenId, msg.sender, msg.value);
     }
 
+    // allows updating access conditions 
     function setAccessCondition(
         uint256 tokenId,
         string calldata newCondition
@@ -239,6 +244,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         emit AccessConditionUpdated(tokenId, newCondition);
     }
 
+    // allow full access to price change
     function setPrice(
         uint256 tokenId,
         uint256 newPrice
@@ -248,6 +254,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         emit PriceUpdated(tokenId, newPrice);
     }
 
+    // only registrar can change CID 
     function updateCID(
         uint256 tokenId,
         string calldata newCid
@@ -256,18 +263,21 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         emit CIDUpdated(tokenId, newCid);
     }
 
+    // allow owner/registrar to disable records.
     function deactivateSGD(
         uint256 tokenId
     ) external recordExists(tokenId) {
         _onlyTokenOwnerOrRegistrar(tokenId);
         _records[tokenId].active = false;
         emit SGDDeactivated(tokenId);
-    }
+    }  
 
+    //reurn next tokenId
     function nextTokenId() external view returns (uint256) {
         return _nextTokenId;
     }
 
+    // 
     function _onlyTokenOwnerOrRegistrar(uint256 tokenId) internal view {
         address currentOwner = sgdNft.ownerOf(tokenId);
         if (

@@ -1,3 +1,6 @@
+// represent the ownership layer
+// each registered genomic data is mapped to 1 NFT
+// NFT owner is as the current owner of dataset
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
