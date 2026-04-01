@@ -288,4 +288,15 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
             revert Unauthorized();
         }
     }
+
+    function tacoCanDecrypt(
+        uint256 tokenId,
+        address user
+    ) external view recordExists(tokenId) returns (uint256) {
+        if (!_records[tokenId].active) {
+            return 0;
+        }
+        
+        return hasPurchased[tokenId][user] ? 1 : 0;
+    }
 }
