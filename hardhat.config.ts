@@ -1,11 +1,12 @@
-import "dotenv/config";
 import "@nomicfoundation/hardhat-toolbox-mocha-ethers";
-import hardhatToolboxMochaEthers from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
 import { defineConfig } from "hardhat/config";
+import hardhatToolboxMochaEthers from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 export default defineConfig({
   plugins: [hardhatToolboxMochaEthers],
-
   solidity: {
     profiles: {
       default: {
@@ -22,7 +23,6 @@ export default defineConfig({
       },
     },
   },
-
   networks: {
     hardhatMainnet: {
       type: "edr-simulated",
@@ -32,18 +32,16 @@ export default defineConfig({
       type: "edr-simulated",
       chainType: "op",
     },
-    bscTestnet: {
+    sepolia: {
       type: "http",
-      chainType: "generic",
-      chainId: 97,
-      url: process.env.RPC_URL || "",
+      chainType: "l1",
+      url: process.env.SEPOLIA_RPC_URL || "",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY.trim()] : [],
     },
   },
-
   verify: {
     etherscan: {
-      apiKey: process.env.BSCSCAN_API_KEY || "",
+      apiKey: process.env.ETHERSCAN_API_KEY,
     },
   },
 });

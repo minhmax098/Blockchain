@@ -20,7 +20,7 @@ async function main() {
         throw new Error("TOKEN_ID is invalid in .env");
     }
 
-    const rpcUrl = process.env.RPC_URL;
+    const rpcUrl = process.env.SEPOLIA_RPC_URL;
     const buyerPrivateKey = process.env.BUYER_PRIVATE_KEY;
 
     if (!rpcUrl) {
