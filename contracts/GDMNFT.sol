@@ -104,6 +104,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
     );
 
     error NotLatestVersion();
+    error SGDAlreadyRegistered();
 
     error NotRegistrar();
     error ZeroAddress();
@@ -141,10 +142,13 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
     function registerSGD(
         RegisterInput calldata input
     ) external onlyRegistrar returns (uint256 tokenId) {
+        if (latestTokenBySgdId[input.sgdId] != 0) revert SGDAlreadyRegistered();
+
         if (input.initialOwner == address(0)) revert ZeroAddress();
 
         tokenId = _nextTokenId;
         _nextTokenId++;
+        
 
         _records[tokenId] = SGDRecord({
             tokenId: tokenId,
@@ -174,6 +178,9 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         } else {
             sgdNft.mint(input.initialOwner, tokenId);
         }
+
+        latestTokenBySgdId[input.sgdId] = tokenId;
+        _versionOfSgd[input.sgdId].push(tokenId);
 
         emit SGDRegistered(
             tokenId,
@@ -230,16 +237,22 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         return _records[tokenId].cid;
     }
 
+    // Buyer can use to pay
     function purchaseFullAccess(
         uint256 tokenId
     ) external payable nonReentrant recordExists(tokenId) {
         SGDRecord storage r = _records[tokenId];
 
+        // 1. NFT version must be active 
         if (!r.active) revert InactiveRecord();
 
+        // 2. Buyer can only purchase the latest SGD NFT version
         if (latestTokenBySgdId[r.sgdId] != tokenId) revert NotLatestVersion();
 
+        // 3. Prevent repeated purchase by the same buyer
         if (hasPurchased[tokenId][msg.sender]) revert AlreadyPurchased();
+        
+        // 4. Buyer must pay the latest price
         if (msg.value != r.price) revert WrongPayment();
 
         hasPurchased[tokenId][msg.sender] = true;
@@ -249,6 +262,20 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         if (!ok) revert PaymentFailed();
 
         emit FullAccessPurchased(tokenId, msg.sender, msg.value);
+    }
+
+    // use for SC/TACo check buyer receive key or not
+    function canReleaseKey(
+        uint256 tokenId, 
+        address buyer
+    ) external view recordExists(tokenId) returns (bool) {
+        SGDRecord storage r = _records[tokenId];
+
+        return (
+            r.active &&
+            latestTokenBySgdId[r.sgdId] == tokenId &&
+            hasPurchased[tokenId][buyer]
+        );
     }
 
     // function setAccessCondition(
@@ -339,10 +366,11 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         );
     }
 
+    // Data Owner only request update
+    // SC/Registrar can create new version or deactivate
     function deactivateSGD(
         uint256 tokenId
-    ) external recordExists(tokenId) {
-        _onlyTokenOwnerOrRegistrar(tokenId);
+    ) external onlyRegistrar recordExists(tokenId) {
         _records[tokenId].active = false;
         emit SGDDeactivated(tokenId);
     }
@@ -360,5 +388,20 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         ) {
             revert Unauthorized();
         }
+    }
+
+    // get version
+    function getVersionOfSgd(
+        string calldata sgdId
+    ) external view returns (uint256[] memory) {
+        return _versionOfSgd[sgdId];
+    }
+
+    // check latest
+    function isLatestVersion(
+        uint256 tokenId
+    ) external view returns (bool) {
+        SGDRecord storage r = _records[tokenId];
+        return latestTokenBySgdId[r.sgdId] == tokenId;
     }
 }
