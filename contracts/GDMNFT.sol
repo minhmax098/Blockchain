@@ -49,6 +49,8 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         string encHash;
         uint256 createdAt;
         bool active;
+        uint256 previousTokenId;
+        uint256 version;
     }
 
     struct PublicRecord {
@@ -71,6 +73,10 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
     mapping(uint256 => SGDRecord) private _records;
     mapping(uint256 => mapping(address => bool)) public hasPurchased;
 
+    mapping (string => uint256) public latestTokenBySgdId;
+    mapping(uint256 => uint256) public previousVersionOf;
+    mapping (string => uint256[]) private _versionOfSgd;
+
     event RegistrarUpdated(address indexed newRegistrar);
     event SGDRegistered(
         uint256 indexed tokenId,
@@ -88,6 +94,16 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
     event PriceUpdated(uint256 indexed tokenId, uint256 newPrice);
     event CIDUpdated(uint256 indexed tokenId, string newCid);
     event SGDDeactivated(uint256 indexed tokenId);
+
+    event SGDVersionCreated(
+        uint256 indexed oldTokenId,
+        uint256 indexed newTokenId,
+        string sgdId,
+        string newAccessCondition,
+        uint256 newPrice
+    );
+
+    error NotLatestVersion();
 
     error NotRegistrar();
     error ZeroAddress();
@@ -148,7 +164,9 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
             signatureRef: input.signatureRef,
             encHash: input.encHash,
             createdAt: block.timestamp,
-            active: true
+            active: true,
+            previousTokenId: 0,
+            version: 1
         });
 
         if (bytes(input.tokenURI).length > 0) {
@@ -218,6 +236,9 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         SGDRecord storage r = _records[tokenId];
 
         if (!r.active) revert InactiveRecord();
+
+        if (latestTokenBySgdId[r.sgdId] != tokenId) revert NotLatestVersion();
+
         if (hasPurchased[tokenId][msg.sender]) revert AlreadyPurchased();
         if (msg.value != r.price) revert WrongPayment();
 
@@ -230,30 +251,92 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         emit FullAccessPurchased(tokenId, msg.sender, msg.value);
     }
 
-    function setAccessCondition(
-        uint256 tokenId,
-        string calldata newCondition
-    ) external recordExists(tokenId) {
-        _onlyTokenOwnerOrRegistrar(tokenId);
-        _records[tokenId].accessCondition = newCondition;
-        emit AccessConditionUpdated(tokenId, newCondition);
-    }
+    // function setAccessCondition(
+    //     uint256 tokenId,
+    //     string calldata newCondition
+    // ) external recordExists(tokenId) {
+    //     _onlyTokenOwnerOrRegistrar(tokenId);
+    //     _records[tokenId].accessCondition = newCondition;
+    //     emit AccessConditionUpdated(tokenId, newCondition);
+    // }
 
-    function setPrice(
-        uint256 tokenId,
-        uint256 newPrice
-    ) external recordExists(tokenId) {
-        _onlyTokenOwnerOrRegistrar(tokenId);
-        _records[tokenId].price = newPrice;
-        emit PriceUpdated(tokenId, newPrice);
-    }
+    // function setPrice(
+    //     uint256 tokenId,
+    //     uint256 newPrice
+    // ) external recordExists(tokenId) {
+    //     _onlyTokenOwnerOrRegistrar(tokenId);
+    //     _records[tokenId].price = newPrice;
+    //     emit PriceUpdated(tokenId, newPrice);
+    // }
 
-    function updateCID(
-        uint256 tokenId,
-        string calldata newCid
-    ) external onlyRegistrar recordExists(tokenId) {
-        _records[tokenId].cid = newCid;
-        emit CIDUpdated(tokenId, newCid);
+    // function updateCID(
+    //     uint256 tokenId,
+    //     string calldata newCid
+    // ) external onlyRegistrar recordExists(tokenId) {
+    //     _records[tokenId].cid = newCid;
+    //     emit CIDUpdated(tokenId, newCid);
+    // }
+
+    function createNewSGDVersion(
+        uint256 oldTokenId, 
+        string calldata newCid, 
+        string calldata newAccessCondition,
+        uint256 newPrice,
+        string calldata newTokenURI
+    ) external onlyRegistrar recordExists(oldTokenId) returns (uint256 newTokenId) {
+        // Implementation for creating a new version of SGD record
+        // This could involve copying the existing record, allowing updates, and linking to the previous version
+        SGDRecord storage oldRecord = _records[oldTokenId];
+
+        if (!oldRecord.active) revert InactiveRecord();
+        if (latestTokenBySgdId[oldRecord.sgdId] != oldTokenId) revert NotLatestVersion();
+
+        oldRecord.active = false; // Deactivate old version
+
+        newTokenId = _nextTokenId;
+        _nextTokenId++;
+
+        _records[newTokenId] = SGDRecord({
+            tokenId: newTokenId,
+            sgdId: oldRecord.sgdId,
+            rgdId: oldRecord.rgdId,
+            cid: newCid,
+            registeredOwner: oldRecord.registeredOwner,
+            accessCondition: newAccessCondition,
+            price: newPrice,
+            collectionDate: oldRecord.collectionDate,
+            sampleType: oldRecord.sampleType,
+            patientRef: oldRecord.patientRef,
+            consentCode: oldRecord.consentCode,
+            sampleHash: oldRecord.sampleHash,
+            encryptionScheme: oldRecord.encryptionScheme,
+            sequencingInfo: oldRecord.sequencingInfo, 
+            signatureRef: oldRecord.signatureRef,
+            encHash: oldRecord.encHash,
+            createdAt: block.timestamp,
+            active: true,
+            previousTokenId: oldTokenId,
+            version: oldRecord.version + 1
+        });
+
+        previousVersionOf[newTokenId] = oldTokenId;
+        latestTokenBySgdId[oldRecord.sgdId] = newTokenId;
+        _versionOfSgd[oldRecord.sgdId].push(newTokenId);
+
+        if (bytes(newTokenURI).length > 0) {
+            sgdNft.mintWithURI(oldRecord.registeredOwner, newTokenId, newTokenURI);
+        } else {
+            sgdNft.mint(oldRecord.registeredOwner, newTokenId);
+        }
+
+        emit SGDDeactivated(oldTokenId);
+        emit SGDVersionCreated(
+            oldTokenId, 
+            newTokenId, 
+            oldRecord.sgdId, 
+            newAccessCondition, 
+            newPrice
+        );
     }
 
     function deactivateSGD(
