@@ -43,6 +43,7 @@ export declare namespace GDMRegistry {
     encHash: string;
     createdAt: BigNumberish;
     active: boolean;
+    version: BigNumberish;
   };
 
   export type SGDRecordStructOutput = [
@@ -63,7 +64,8 @@ export declare namespace GDMRegistry {
     signatureRef: string,
     encHash: string,
     createdAt: bigint,
-    active: boolean
+    active: boolean,
+    version: bigint
   ] & {
     tokenId: bigint;
     sgdId: string;
@@ -83,6 +85,7 @@ export declare namespace GDMRegistry {
     encHash: string;
     createdAt: bigint;
     active: boolean;
+    version: bigint;
   };
 
   export type PublicRecordStruct = {
@@ -193,37 +196,42 @@ export declare namespace GDMRegistry {
 export interface GDMRegistryInterface extends Interface {
   getFunction(
     nameOrSignature:
+      | "canReleaseKey"
       | "deactivateSGD"
       | "getCID"
       | "getFullRecord"
       | "getPublicRecord"
+      | "getVersionsOfSgd"
       | "hasPurchased"
+      | "isLatestVersion"
+      | "latestTokenBySgdId"
       | "nextTokenId"
       | "owner"
       | "purchaseFullAccess"
       | "registerSGD"
       | "registrar"
       | "renounceOwnership"
-      | "setAccessCondition"
-      | "setPrice"
       | "setRegistrar"
       | "sgdNft"
       | "transferOwnership"
-      | "updateCID"
+      | "updateSGDVersion"
   ): FunctionFragment;
 
   getEvent(
     nameOrSignatureOrTopic:
-      | "AccessConditionUpdated"
-      | "CIDUpdated"
       | "FullAccessPurchased"
+      | "LatestVersionUpdated"
       | "OwnershipTransferred"
-      | "PriceUpdated"
       | "RegistrarUpdated"
       | "SGDDeactivated"
       | "SGDRegistered"
+      | "SGDVersionUpdated"
   ): EventFragment;
 
+  encodeFunctionData(
+    functionFragment: "canReleaseKey",
+    values: [BigNumberish, AddressLike]
+  ): string;
   encodeFunctionData(
     functionFragment: "deactivateSGD",
     values: [BigNumberish]
@@ -241,8 +249,20 @@ export interface GDMRegistryInterface extends Interface {
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
+    functionFragment: "getVersionsOfSgd",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
     functionFragment: "hasPurchased",
     values: [BigNumberish, AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "isLatestVersion",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "latestTokenBySgdId",
+    values: [string]
   ): string;
   encodeFunctionData(
     functionFragment: "nextTokenId",
@@ -263,14 +283,6 @@ export interface GDMRegistryInterface extends Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
-    functionFragment: "setAccessCondition",
-    values: [BigNumberish, string]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "setPrice",
-    values: [BigNumberish, BigNumberish]
-  ): string;
-  encodeFunctionData(
     functionFragment: "setRegistrar",
     values: [AddressLike]
   ): string;
@@ -280,10 +292,14 @@ export interface GDMRegistryInterface extends Interface {
     values: [AddressLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "updateCID",
-    values: [BigNumberish, string]
+    functionFragment: "updateSGDVersion",
+    values: [BigNumberish, string, string, BigNumberish, string]
   ): string;
 
+  decodeFunctionResult(
+    functionFragment: "canReleaseKey",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "deactivateSGD",
     data: BytesLike
@@ -298,7 +314,19 @@ export interface GDMRegistryInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "getVersionsOfSgd",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "hasPurchased",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "isLatestVersion",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "latestTokenBySgdId",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -320,11 +348,6 @@ export interface GDMRegistryInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "setAccessCondition",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(functionFragment: "setPrice", data: BytesLike): Result;
-  decodeFunctionResult(
     functionFragment: "setRegistrar",
     data: BytesLike
   ): Result;
@@ -333,33 +356,10 @@ export interface GDMRegistryInterface extends Interface {
     functionFragment: "transferOwnership",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "updateCID", data: BytesLike): Result;
-}
-
-export namespace AccessConditionUpdatedEvent {
-  export type InputTuple = [tokenId: BigNumberish, newCondition: string];
-  export type OutputTuple = [tokenId: bigint, newCondition: string];
-  export interface OutputObject {
-    tokenId: bigint;
-    newCondition: string;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
-}
-
-export namespace CIDUpdatedEvent {
-  export type InputTuple = [tokenId: BigNumberish, newCid: string];
-  export type OutputTuple = [tokenId: bigint, newCid: string];
-  export interface OutputObject {
-    tokenId: bigint;
-    newCid: string;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
+  decodeFunctionResult(
+    functionFragment: "updateSGDVersion",
+    data: BytesLike
+  ): Result;
 }
 
 export namespace FullAccessPurchasedEvent {
@@ -380,12 +380,12 @@ export namespace FullAccessPurchasedEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export namespace OwnershipTransferredEvent {
-  export type InputTuple = [previousOwner: AddressLike, newOwner: AddressLike];
-  export type OutputTuple = [previousOwner: string, newOwner: string];
+export namespace LatestVersionUpdatedEvent {
+  export type InputTuple = [sgdId: string, latestTokenId: BigNumberish];
+  export type OutputTuple = [sgdId: string, latestTokenId: bigint];
   export interface OutputObject {
-    previousOwner: string;
-    newOwner: string;
+    sgdId: string;
+    latestTokenId: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -393,12 +393,12 @@ export namespace OwnershipTransferredEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export namespace PriceUpdatedEvent {
-  export type InputTuple = [tokenId: BigNumberish, newPrice: BigNumberish];
-  export type OutputTuple = [tokenId: bigint, newPrice: bigint];
+export namespace OwnershipTransferredEvent {
+  export type InputTuple = [previousOwner: AddressLike, newOwner: AddressLike];
+  export type OutputTuple = [previousOwner: string, newOwner: string];
   export interface OutputObject {
-    tokenId: bigint;
-    newPrice: bigint;
+    previousOwner: string;
+    newOwner: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -458,6 +458,34 @@ export namespace SGDRegisteredEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
+export namespace SGDVersionUpdatedEvent {
+  export type InputTuple = [
+    tokenId: BigNumberish,
+    sgdId: string,
+    newAccessCondition: string,
+    newPrice: BigNumberish,
+    newVersion: BigNumberish
+  ];
+  export type OutputTuple = [
+    tokenId: bigint,
+    sgdId: string,
+    newAccessCondition: string,
+    newPrice: bigint,
+    newVersion: bigint
+  ];
+  export interface OutputObject {
+    tokenId: bigint;
+    sgdId: string;
+    newAccessCondition: string;
+    newPrice: bigint;
+    newVersion: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
 export interface GDMRegistry extends BaseContract {
   connect(runner?: ContractRunner | null): GDMRegistry;
   waitForDeployment(): Promise<this>;
@@ -501,6 +529,12 @@ export interface GDMRegistry extends BaseContract {
     event?: TCEvent
   ): Promise<this>;
 
+  canReleaseKey: TypedContractMethod<
+    [tokenId: BigNumberish, buyer: AddressLike],
+    [boolean],
+    "view"
+  >;
+
   deactivateSGD: TypedContractMethod<
     [tokenId: BigNumberish],
     [void],
@@ -521,11 +555,25 @@ export interface GDMRegistry extends BaseContract {
     "view"
   >;
 
+  getVersionsOfSgd: TypedContractMethod<
+    [tokenId: BigNumberish],
+    [GDMRegistry.SGDRecordStructOutput[]],
+    "view"
+  >;
+
   hasPurchased: TypedContractMethod<
     [arg0: BigNumberish, arg1: AddressLike],
     [boolean],
     "view"
   >;
+
+  isLatestVersion: TypedContractMethod<
+    [tokenId: BigNumberish],
+    [boolean],
+    "view"
+  >;
+
+  latestTokenBySgdId: TypedContractMethod<[arg0: string], [bigint], "view">;
 
   nextTokenId: TypedContractMethod<[], [bigint], "view">;
 
@@ -547,18 +595,6 @@ export interface GDMRegistry extends BaseContract {
 
   renounceOwnership: TypedContractMethod<[], [void], "nonpayable">;
 
-  setAccessCondition: TypedContractMethod<
-    [tokenId: BigNumberish, newCondition: string],
-    [void],
-    "nonpayable"
-  >;
-
-  setPrice: TypedContractMethod<
-    [tokenId: BigNumberish, newPrice: BigNumberish],
-    [void],
-    "nonpayable"
-  >;
-
   setRegistrar: TypedContractMethod<
     [newRegistrar: AddressLike],
     [void],
@@ -573,8 +609,14 @@ export interface GDMRegistry extends BaseContract {
     "nonpayable"
   >;
 
-  updateCID: TypedContractMethod<
-    [tokenId: BigNumberish, newCid: string],
+  updateSGDVersion: TypedContractMethod<
+    [
+      tokenId: BigNumberish,
+      newCid: string,
+      newAccessCondition: string,
+      newPrice: BigNumberish,
+      newTokenURI: string
+    ],
     [void],
     "nonpayable"
   >;
@@ -583,6 +625,13 @@ export interface GDMRegistry extends BaseContract {
     key: string | FunctionFragment
   ): T;
 
+  getFunction(
+    nameOrSignature: "canReleaseKey"
+  ): TypedContractMethod<
+    [tokenId: BigNumberish, buyer: AddressLike],
+    [boolean],
+    "view"
+  >;
   getFunction(
     nameOrSignature: "deactivateSGD"
   ): TypedContractMethod<[tokenId: BigNumberish], [void], "nonpayable">;
@@ -604,12 +653,25 @@ export interface GDMRegistry extends BaseContract {
     "view"
   >;
   getFunction(
+    nameOrSignature: "getVersionsOfSgd"
+  ): TypedContractMethod<
+    [tokenId: BigNumberish],
+    [GDMRegistry.SGDRecordStructOutput[]],
+    "view"
+  >;
+  getFunction(
     nameOrSignature: "hasPurchased"
   ): TypedContractMethod<
     [arg0: BigNumberish, arg1: AddressLike],
     [boolean],
     "view"
   >;
+  getFunction(
+    nameOrSignature: "isLatestVersion"
+  ): TypedContractMethod<[tokenId: BigNumberish], [boolean], "view">;
+  getFunction(
+    nameOrSignature: "latestTokenBySgdId"
+  ): TypedContractMethod<[arg0: string], [bigint], "view">;
   getFunction(
     nameOrSignature: "nextTokenId"
   ): TypedContractMethod<[], [bigint], "view">;
@@ -633,20 +695,6 @@ export interface GDMRegistry extends BaseContract {
     nameOrSignature: "renounceOwnership"
   ): TypedContractMethod<[], [void], "nonpayable">;
   getFunction(
-    nameOrSignature: "setAccessCondition"
-  ): TypedContractMethod<
-    [tokenId: BigNumberish, newCondition: string],
-    [void],
-    "nonpayable"
-  >;
-  getFunction(
-    nameOrSignature: "setPrice"
-  ): TypedContractMethod<
-    [tokenId: BigNumberish, newPrice: BigNumberish],
-    [void],
-    "nonpayable"
-  >;
-  getFunction(
     nameOrSignature: "setRegistrar"
   ): TypedContractMethod<[newRegistrar: AddressLike], [void], "nonpayable">;
   getFunction(
@@ -656,27 +704,19 @@ export interface GDMRegistry extends BaseContract {
     nameOrSignature: "transferOwnership"
   ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
   getFunction(
-    nameOrSignature: "updateCID"
+    nameOrSignature: "updateSGDVersion"
   ): TypedContractMethod<
-    [tokenId: BigNumberish, newCid: string],
+    [
+      tokenId: BigNumberish,
+      newCid: string,
+      newAccessCondition: string,
+      newPrice: BigNumberish,
+      newTokenURI: string
+    ],
     [void],
     "nonpayable"
   >;
 
-  getEvent(
-    key: "AccessConditionUpdated"
-  ): TypedContractEvent<
-    AccessConditionUpdatedEvent.InputTuple,
-    AccessConditionUpdatedEvent.OutputTuple,
-    AccessConditionUpdatedEvent.OutputObject
-  >;
-  getEvent(
-    key: "CIDUpdated"
-  ): TypedContractEvent<
-    CIDUpdatedEvent.InputTuple,
-    CIDUpdatedEvent.OutputTuple,
-    CIDUpdatedEvent.OutputObject
-  >;
   getEvent(
     key: "FullAccessPurchased"
   ): TypedContractEvent<
@@ -685,18 +725,18 @@ export interface GDMRegistry extends BaseContract {
     FullAccessPurchasedEvent.OutputObject
   >;
   getEvent(
+    key: "LatestVersionUpdated"
+  ): TypedContractEvent<
+    LatestVersionUpdatedEvent.InputTuple,
+    LatestVersionUpdatedEvent.OutputTuple,
+    LatestVersionUpdatedEvent.OutputObject
+  >;
+  getEvent(
     key: "OwnershipTransferred"
   ): TypedContractEvent<
     OwnershipTransferredEvent.InputTuple,
     OwnershipTransferredEvent.OutputTuple,
     OwnershipTransferredEvent.OutputObject
-  >;
-  getEvent(
-    key: "PriceUpdated"
-  ): TypedContractEvent<
-    PriceUpdatedEvent.InputTuple,
-    PriceUpdatedEvent.OutputTuple,
-    PriceUpdatedEvent.OutputObject
   >;
   getEvent(
     key: "RegistrarUpdated"
@@ -719,30 +759,15 @@ export interface GDMRegistry extends BaseContract {
     SGDRegisteredEvent.OutputTuple,
     SGDRegisteredEvent.OutputObject
   >;
+  getEvent(
+    key: "SGDVersionUpdated"
+  ): TypedContractEvent<
+    SGDVersionUpdatedEvent.InputTuple,
+    SGDVersionUpdatedEvent.OutputTuple,
+    SGDVersionUpdatedEvent.OutputObject
+  >;
 
   filters: {
-    "AccessConditionUpdated(uint256,string)": TypedContractEvent<
-      AccessConditionUpdatedEvent.InputTuple,
-      AccessConditionUpdatedEvent.OutputTuple,
-      AccessConditionUpdatedEvent.OutputObject
-    >;
-    AccessConditionUpdated: TypedContractEvent<
-      AccessConditionUpdatedEvent.InputTuple,
-      AccessConditionUpdatedEvent.OutputTuple,
-      AccessConditionUpdatedEvent.OutputObject
-    >;
-
-    "CIDUpdated(uint256,string)": TypedContractEvent<
-      CIDUpdatedEvent.InputTuple,
-      CIDUpdatedEvent.OutputTuple,
-      CIDUpdatedEvent.OutputObject
-    >;
-    CIDUpdated: TypedContractEvent<
-      CIDUpdatedEvent.InputTuple,
-      CIDUpdatedEvent.OutputTuple,
-      CIDUpdatedEvent.OutputObject
-    >;
-
     "FullAccessPurchased(uint256,address,uint256)": TypedContractEvent<
       FullAccessPurchasedEvent.InputTuple,
       FullAccessPurchasedEvent.OutputTuple,
@@ -754,6 +779,17 @@ export interface GDMRegistry extends BaseContract {
       FullAccessPurchasedEvent.OutputObject
     >;
 
+    "LatestVersionUpdated(string,uint256)": TypedContractEvent<
+      LatestVersionUpdatedEvent.InputTuple,
+      LatestVersionUpdatedEvent.OutputTuple,
+      LatestVersionUpdatedEvent.OutputObject
+    >;
+    LatestVersionUpdated: TypedContractEvent<
+      LatestVersionUpdatedEvent.InputTuple,
+      LatestVersionUpdatedEvent.OutputTuple,
+      LatestVersionUpdatedEvent.OutputObject
+    >;
+
     "OwnershipTransferred(address,address)": TypedContractEvent<
       OwnershipTransferredEvent.InputTuple,
       OwnershipTransferredEvent.OutputTuple,
@@ -763,17 +799,6 @@ export interface GDMRegistry extends BaseContract {
       OwnershipTransferredEvent.InputTuple,
       OwnershipTransferredEvent.OutputTuple,
       OwnershipTransferredEvent.OutputObject
-    >;
-
-    "PriceUpdated(uint256,uint256)": TypedContractEvent<
-      PriceUpdatedEvent.InputTuple,
-      PriceUpdatedEvent.OutputTuple,
-      PriceUpdatedEvent.OutputObject
-    >;
-    PriceUpdated: TypedContractEvent<
-      PriceUpdatedEvent.InputTuple,
-      PriceUpdatedEvent.OutputTuple,
-      PriceUpdatedEvent.OutputObject
     >;
 
     "RegistrarUpdated(address)": TypedContractEvent<
@@ -807,6 +832,17 @@ export interface GDMRegistry extends BaseContract {
       SGDRegisteredEvent.InputTuple,
       SGDRegisteredEvent.OutputTuple,
       SGDRegisteredEvent.OutputObject
+    >;
+
+    "SGDVersionUpdated(uint256,string,string,uint256,uint256)": TypedContractEvent<
+      SGDVersionUpdatedEvent.InputTuple,
+      SGDVersionUpdatedEvent.OutputTuple,
+      SGDVersionUpdatedEvent.OutputObject
+    >;
+    SGDVersionUpdated: TypedContractEvent<
+      SGDVersionUpdatedEvent.InputTuple,
+      SGDVersionUpdatedEvent.OutputTuple,
+      SGDVersionUpdatedEvent.OutputObject
     >;
   };
 }
