@@ -79,7 +79,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
     // _versionsOfSgd["SGD001"] = [1, 2, 3];
     // latestTokenBySgdId["SGD001"] = 3;
     // Means: The array stores the entire version history. The variable `latest` stores the currently active token.
-    mapping (string => uint256[]) private _versionsOfSgd;
+    mapping (uint256 => SGDRecord[]) private _versionsOfSgd;
     mapping (string => uint256) public latestTokenBySgdId;
 
     event RegistrarUpdated(address indexed newRegistrar);
@@ -158,7 +158,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         _nextTokenId++;
         
 
-        _records[tokenId] = SGDRecord({
+        SGDRecord memory r = SGDRecord({
             tokenId: tokenId,
             sgdId: input.sgdId,
             rgdId: input.rgdId,
@@ -177,8 +177,10 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
             encHash: input.encHash,
             createdAt: block.timestamp,
             active: true,
-            version: 1
+            version: 0
         });
+
+        _records[tokenId] = r;
 
         if (bytes(input.tokenURI).length > 0) {
             sgdNft.mintWithURI(input.initialOwner, tokenId, input.tokenURI);

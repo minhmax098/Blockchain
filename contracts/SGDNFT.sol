@@ -1,3 +1,4 @@
+// SGDNFT: ERC721 layer for SGD NFT: mint SGD NFT, save tokenURI, manage owner of NFT, only minter can mint
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 

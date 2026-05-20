@@ -1,3 +1,10 @@
+// Only authorized SCs can mint RGD
+// Use a one-time secret code
+// Code whitelist
+// Code used check
+// Save rgdDataHashes[tokenId]
+// TokenURI is the CID of the encrypted RGD on IPFS
+
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/access/Ownable.sol";
