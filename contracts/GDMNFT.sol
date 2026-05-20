@@ -1,3 +1,4 @@
+// GDMNFT: manage SGD metadata, access condition, pricing, NFT versioning, payment, latest active policy
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
@@ -11,6 +12,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
 
     uint256 private _nextTokenId = 1;
 
+    // SC creates SGD NFT for the first time: CID, price, access condition, patient metadata, sequencing metadata, tokenURI
     struct RegisterInput {
         address initialOwner;
         string sgdId;
@@ -30,6 +32,8 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         string tokenURI;
     }
 
+    // on-chain metadata record
+    // save: SGD identity, encrypted CID, access condition, price, owner, sequencing metadata, version numberactive/latest state
     struct SGDRecord {
         uint256 tokenId;
         string sgdId;
@@ -75,7 +79,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
     // _versionsOfSgd["SGD001"] = [1, 2, 3];
     // latestTokenBySgdId["SGD001"] = 3;
     // Means: The array stores the entire version history. The variable `latest` stores the currently active token.
-    mapping (string => uint256[]) private _versionOfSgd;
+    mapping (uint256 => SGDRecord[]) private _versionsOfSgd;
     mapping (string => uint256) public latestTokenBySgdId;
 
     event RegistrarUpdated(address indexed newRegistrar);
@@ -91,9 +95,6 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         address indexed buyer,
         uint256 amount
     );
-    event AccessConditionUpdated(uint256 indexed tokenId, string newCondition);
-    event PriceUpdated(uint256 indexed tokenId, uint256 newPrice);
-    event CIDUpdated(uint256 indexed tokenId, string newCid);
     event SGDDeactivated(uint256 indexed tokenId);
 
     event SGDVersionCreated(
@@ -102,6 +103,11 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         string sgdId,
         string newAccessCondition,
         uint256 newPrice
+    );
+
+    event LatestVersionUpdated(
+        string indexed sgdId,
+        uint256 indexed latestTokenId
     );
 
     error NotLatestVersion();
@@ -152,7 +158,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         _nextTokenId++;
         
 
-        _records[tokenId] = SGDRecord({
+        SGDRecord memory r = SGDRecord({
             tokenId: tokenId,
             sgdId: input.sgdId,
             rgdId: input.rgdId,
@@ -171,8 +177,10 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
             encHash: input.encHash,
             createdAt: block.timestamp,
             active: true,
-            version: 1
+            version: 0
         });
+
+        _records[tokenId] = r;
 
         if (bytes(input.tokenURI).length > 0) {
             sgdNft.mintWithURI(input.initialOwner, tokenId, input.tokenURI);
@@ -181,7 +189,9 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         }
 
         latestTokenBySgdId[input.sgdId] = tokenId;
-        _versionOfSgd[input.sgdId].push(tokenId);
+        _versionsOfSgd[input.sgdId].push(tokenId);
+
+        emit LatestVersionUpdated(input.sgdId, tokenId);
 
         emit SGDRegistered(
             tokenId,
@@ -238,7 +248,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         return _records[tokenId].cid;
     }
 
-    // Buyer can use to pay, 
+    // Buyer purchases access to the latest active SGD NFT version, 
     // Buyers can only purchase the latest active version.
     function purchaseFullAccess(
         uint256 tokenId
@@ -266,7 +276,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         emit FullAccessPurchased(tokenId, msg.sender, msg.value);
     }
 
-    // use for SC/TACo check buyer receive key or not
+    // TACo/SC validates buyer eligibility before releasing decryption key shares
     // SC/TACo check before release key.
     function canReleaseKey(
         uint256 tokenId, 
@@ -283,6 +293,9 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
 
     // use when data owner wants to update access condition or price.
     // Blockchain immutable, but system supports logical mutability through NFT versioning
+    // When: access conditions change, price changes, CID changes
+    // THEN: do not modify the old NFT, deactivate the old version, 
+    // THEN: create a new NFT, update to the latest version, save immutable history
     function createNewSGDVersion(
         uint256 oldTokenId, 
         string calldata newCid, 
@@ -290,8 +303,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         uint256 newPrice,
         string calldata newTokenURI
     ) external onlyRegistrar recordExists(oldTokenId) returns (uint256 newTokenId) {
-        // Implementation for creating a new version of SGD record
-        // This could involve copying the existing record, allowing updates, and linking to the previous version
+        // Create a new immutable SGD NFT version and store it in version history.
         SGDRecord storage oldRecord = _records[oldTokenId];
 
         if (!oldRecord.active) revert InactiveRecord();
@@ -325,7 +337,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         });
 
         latestTokenBySgdId[oldRecord.sgdId] = newTokenId;
-        _versionOfSgd[oldRecord.sgdId].push(newTokenId);
+        _versionsOfSgd[oldRecord.sgdId].push(newTokenId);
 
         if (bytes(newTokenURI).length > 0) {
             sgdNft.mintWithURI(oldRecord.registeredOwner, newTokenId, newTokenURI);
@@ -341,6 +353,8 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
             newAccessCondition, 
             newPrice
         );
+
+        emit LatestVersionUpdated(oldRecord.sgdId, newTokenId);
     }
 
     // Data Owner only request update
@@ -356,28 +370,17 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         return _nextTokenId;
     }
 
-    function _onlyTokenOwnerOrRegistrar(uint256 tokenId) internal view {
-        address currentOwner = sgdNft.ownerOf(tokenId);
-        if (
-            msg.sender != currentOwner &&
-            msg.sender != registrar &&
-            msg.sender != owner()
-        ) {
-            revert Unauthorized();
-        }
-    }
-
     // Returns the entire version history.
-    function getVersionOfSgd(
+    function getVersionsOfSgd(
         string calldata sgdId
     ) external view returns (uint256[] memory) {
-        return _versionOfSgd[sgdId];
+        return _versionsOfSgd[sgdId];
     }
 
     // Checks if the current token is the latest version.
     function isLatestVersion(
         uint256 tokenId
-    ) external view returns (bool) {
+    ) external view recordExists(tokenId) returns (bool) {
         SGDRecord storage r = _records[tokenId];
         return latestTokenBySgdId[r.sgdId] == tokenId;
     }
