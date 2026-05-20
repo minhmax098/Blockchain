@@ -1,3 +1,4 @@
+// GDMNFT: manage SGD metadata, access condition, pricing, NFT versioning, payment, latest active policy
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
@@ -11,6 +12,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
 
     uint256 private _nextTokenId = 1;
 
+    // SC creates SGD NFT for the first time: CID, price, access condition, patient metadata, sequencing metadata, tokenURI
     struct RegisterInput {
         address initialOwner;
         string sgdId;
@@ -30,6 +32,8 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         string tokenURI;
     }
 
+    // on-chain metadata record
+    // save: SGD identity, encrypted CID, access condition, price, owner, sequencing metadata, version numberactive/latest state
     struct SGDRecord {
         uint256 tokenId;
         string sgdId;
@@ -287,6 +291,9 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
 
     // use when data owner wants to update access condition or price.
     // Blockchain immutable, but system supports logical mutability through NFT versioning
+    // When: access conditions change, price changes, CID changes
+    // THEN: do not modify the old NFT, deactivate the old version, 
+    // THEN: create a new NFT, update to the latest version, save immutable history
     function createNewSGDVersion(
         uint256 oldTokenId, 
         string calldata newCid, 
@@ -375,6 +382,4 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         SGDRecord storage r = _records[tokenId];
         return latestTokenBySgdId[r.sgdId] == tokenId;
     }
-
-
 }
