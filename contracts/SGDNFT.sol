@@ -62,4 +62,15 @@ contract SGDNFT is ERC721, Ownable {
         if (_ownerOf(tokenId) == address(0)) revert TokenNotMinted();
         return _tokenURIs[tokenId];
     }
+
+    // Allow the Registry (minter) to transfer the NFT on behalf of the owner when updating versions
+    function transferByMinter(
+        address from,
+        address to,
+        uint256 tokenId
+    ) external onlyMinter {
+        if (_ownerOf(tokenId) == address(0)) revert TokenNotMinted();
+        if (to == address(0)) revert ZeroAddress();
+        _transfer(from, to, tokenId);
+    }
 }
