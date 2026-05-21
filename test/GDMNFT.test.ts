@@ -199,8 +199,8 @@ describe("GDMNFT", function () {
   });
 
   describe("updateSGDVersion", function () {
-    it("should correctly update the version, save history, and update URI", async function () {
-      const { registry, sgdNft, owner, user1 } = await loadFixture(deployFixture);
+    it("should correctly update the version, save history, update URI and change owner if provided", async function () {
+      const { registry, sgdNft, owner, user1, user2 } = await loadFixture(deployFixture);
 
       const price = ethers.parseEther("0.1");
       const input = {
@@ -224,16 +224,18 @@ describe("GDMNFT", function () {
 
       await registry.registerSGD(input);
 
+      // We pass user2.address as the newOwner
       const newPrice = ethers.parseEther("0.2");
       await expect(registry.updateSGDVersion(
         1,
         "QmTestCID_v1",
         "Private",
         newPrice,
-        "ipfs://testURI_v1"
+        "ipfs://testURI_v1",
+        user2.address
       ))
       .to.emit(registry, "SGDVersionUpdated")
-      .withArgs(1, "SGD001", "Private", newPrice, 1);
+      .withArgs(1, "SGD001", "Private", newPrice, 1, user2.address);
 
       // Check current record
       const record = await registry.getFullRecord(1);
@@ -242,8 +244,10 @@ describe("GDMNFT", function () {
       expect(record.price).to.equal(newPrice);
       expect(record.version).to.equal(1);
 
-      // Check NFT URI
+      // Check NFT URI and ownership transfer
       expect(await sgdNft.tokenURI(1)).to.equal("ipfs://testURI_v1");
+      expect(await sgdNft.ownerOf(1)).to.equal(user2.address);
+      expect(record.registeredOwner).to.equal(user2.address);
 
       // Check version history
       const versions = await registry.getVersionsOfSgd(1);

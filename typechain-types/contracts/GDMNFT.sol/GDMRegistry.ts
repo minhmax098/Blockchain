@@ -293,7 +293,7 @@ export interface GDMRegistryInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "updateSGDVersion",
-    values: [BigNumberish, string, string, BigNumberish, string]
+    values: [BigNumberish, string, string, BigNumberish, string, AddressLike]
   ): string;
 
   decodeFunctionResult(
@@ -464,14 +464,16 @@ export namespace SGDVersionUpdatedEvent {
     sgdId: string,
     newAccessCondition: string,
     newPrice: BigNumberish,
-    newVersion: BigNumberish
+    newVersion: BigNumberish,
+    newOwner: AddressLike
   ];
   export type OutputTuple = [
     tokenId: bigint,
     sgdId: string,
     newAccessCondition: string,
     newPrice: bigint,
-    newVersion: bigint
+    newVersion: bigint,
+    newOwner: string
   ];
   export interface OutputObject {
     tokenId: bigint;
@@ -479,6 +481,7 @@ export namespace SGDVersionUpdatedEvent {
     newAccessCondition: string;
     newPrice: bigint;
     newVersion: bigint;
+    newOwner: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -615,7 +618,8 @@ export interface GDMRegistry extends BaseContract {
       newCid: string,
       newAccessCondition: string,
       newPrice: BigNumberish,
-      newTokenURI: string
+      newTokenURI: string,
+      newOwner: AddressLike
     ],
     [void],
     "nonpayable"
@@ -711,7 +715,8 @@ export interface GDMRegistry extends BaseContract {
       newCid: string,
       newAccessCondition: string,
       newPrice: BigNumberish,
-      newTokenURI: string
+      newTokenURI: string,
+      newOwner: AddressLike
     ],
     [void],
     "nonpayable"
@@ -834,7 +839,7 @@ export interface GDMRegistry extends BaseContract {
       SGDRegisteredEvent.OutputObject
     >;
 
-    "SGDVersionUpdated(uint256,string,string,uint256,uint256)": TypedContractEvent<
+    "SGDVersionUpdated(uint256,string,string,uint256,uint256,address)": TypedContractEvent<
       SGDVersionUpdatedEvent.InputTuple,
       SGDVersionUpdatedEvent.OutputTuple,
       SGDVersionUpdatedEvent.OutputObject

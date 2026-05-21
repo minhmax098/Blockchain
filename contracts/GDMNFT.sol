@@ -102,7 +102,8 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         string sgdId,
         string newAccessCondition,
         uint256 newPrice,
-        uint256 newVersion
+        uint256 newVersion,
+        address newOwner
     );
 
     event LatestVersionUpdated(
@@ -299,7 +300,8 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         string calldata newCid, 
         string calldata newAccessCondition,
         uint256 newPrice,
-        string calldata newTokenURI
+        string calldata newTokenURI,
+        address newOwner
     ) external onlyRegistrar recordExists(tokenId) {
         SGDRecord storage record = _records[tokenId];
 
@@ -314,6 +316,11 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         record.price = newPrice;
         record.version = record.version + 1;
 
+        if (newOwner != address(0) && newOwner != record.registeredOwner) {
+            sgdNft.transferByMinter(record.registeredOwner, newOwner, tokenId);
+            record.registeredOwner = newOwner;
+        }
+
         if (bytes(newTokenURI).length > 0) {
             sgdNft.setTokenURI(tokenId, newTokenURI);
         }
@@ -323,7 +330,8 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
             record.sgdId,
             newAccessCondition, 
             newPrice,
-            record.version
+            record.version,
+            record.registeredOwner
         );
     }
 
