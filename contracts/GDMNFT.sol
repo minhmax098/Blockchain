@@ -33,7 +33,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
     }
 
     // on-chain metadata record
-    // save: SGD identity, encrypted CID, access condition, price, owner, sequencing metadata, version numberactive/latest state
+    // save: SGD identity, CID, access condition, price, owner, sequencing metadata, version numberactive/latest state
     struct SGDRecord {
         uint256 tokenId;
         string sgdId;
@@ -248,6 +248,17 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         return _records[tokenId].cid;
     }
 
+    // Allow the Registry (minter) to transfer NFTs on behalf of the owner when updating to a new version.
+    //function transferByMinter(
+    //    address from,
+    //    address to,
+    //    uint256 tokenId
+    //) external onlyMinter {
+    //    if (_ownerOf(tokenId) == address(0)) revert TokenNotMinted();
+    //    if (to == address(0)) revert ZeroAddress();
+    //    _transfer(from, to, tokenId);
+    //}
+
     // Buyer purchases access to the latest active SGD NFT version, 
     // Buyers can only purchase the latest active version.
     function purchaseFullAccess(
@@ -301,7 +312,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         string calldata newAccessCondition,
         uint256 newPrice,
         string calldata newTokenURI,
-        address newOwner
+        address newOwner    // 1. Add new wallet parameters
     ) external onlyRegistrar recordExists(tokenId) {
         SGDRecord storage record = _records[tokenId];
 
@@ -311,11 +322,13 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         // Push old data to version history before updating
         _versionsOfSgd[tokenId].push(record);
 
+        // Update the current record with new information
         record.cid = newCid;
         record.accessCondition = newAccessCondition;
         record.price = newPrice;
         record.version = record.version + 1;
 
+        // 2. Logic for transferring NFTs to a new wallet.
         if (newOwner != address(0) && newOwner != record.registeredOwner) {
             sgdNft.transferByMinter(record.registeredOwner, newOwner, tokenId);
             record.registeredOwner = newOwner;
@@ -331,7 +344,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
             newAccessCondition, 
             newPrice,
             record.version,
-            record.registeredOwner
+            record.registeredOwner    // 3. Add new owner log
         );
     }
 
