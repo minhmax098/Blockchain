@@ -111,7 +111,7 @@ contract RGDNFT is ERC721URIStorage, Ownable {
         require(ownerOf(tokenId) == msg.sender, "Caller is not owner nor approved");
         itemCount++; // increase itemCount
         // Transfer NFT to address of contract GDM
-        _transfer(msg.sender, gdmRegistry, tokenId);
+        safeTransferFrom(msg.sender, gdmRegistry, tokenId);
 
         emit RGDTokenListed(tokenId, msg.sender);
     }

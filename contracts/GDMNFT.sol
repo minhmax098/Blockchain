@@ -4,9 +4,10 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "./SGDNFT.sol";
 
-contract GDMRegistry is Ownable, ReentrancyGuard {
+contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
     SGDNFT public immutable sgdNft;
     address public registrar;
 
@@ -16,7 +17,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
     struct RegisterInput {
         address initialOwner;
         string sgdId;
-        string rgdId;
+        uint256 rgdTokenId;
         string cid;
         string accessCondition;
         uint256 price;
@@ -37,7 +38,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
     struct SGDRecord {
         uint256 tokenId;
         string sgdId;
-        string rgdId;
+        uint256 rgdTokenId;
         string cid;
         address registeredOwner;
         string accessCondition;
@@ -59,7 +60,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
     struct PublicRecord {
         uint256 tokenId;
         string sgdId;
-        string rgdId;
+        uint256 rgdTokenId;
         address currentOwner;
         string accessCondition;
         uint256 price;
@@ -82,7 +83,15 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
     mapping (uint256 => SGDRecord[]) private _versionsOfSgd;
     mapping (string => uint256) public latestTokenBySgdId;
 
+    // Track original owners of RGD NFTs when they are deposited
+    mapping(uint256 => address) public rgdOriginalOwners;
+
+    // Platform fee configuration
+    uint256 public platformFeePercentage = 250; // 2.5% = 250 basis points (out of 10000)
+    address public feeReceiver;
+
     event RegistrarUpdated(address indexed newRegistrar);
+    event RGDReceived(address indexed operator, address indexed from, uint256 indexed tokenId, bytes data);
     event SGDRegistered(
         uint256 indexed tokenId,
         address indexed initialOwner,
@@ -129,6 +138,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         if (nftAddress == address(0)) revert ZeroAddress();
         sgdNft = SGDNFT(nftAddress);
         registrar = initialOwner;
+        feeReceiver = initialOwner; // Default fee receiver is the owner
     }
 
     modifier onlyRegistrar() {
@@ -147,6 +157,13 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         emit RegistrarUpdated(newRegistrar);
     }
 
+    function setFeeConfiguration(uint256 newFeePercentage, address newFeeReceiver) external onlyOwner {
+        require(newFeePercentage <= 10000, "Fee percentage cannot exceed 100%");
+        require(newFeeReceiver != address(0), "Fee receiver cannot be zero address");
+        platformFeePercentage = newFeePercentage;
+        feeReceiver = newFeeReceiver;
+    }
+
     // SC creates the first SGD NFT version and stores its access condition, price, CID, and owner information.
     function registerSGD(
         RegisterInput calldata input
@@ -155,6 +172,9 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
 
         if (input.initialOwner == address(0)) revert ZeroAddress();
 
+        // Ensure the RGD NFT is deposited and trackable
+        require(rgdOriginalOwners[input.rgdTokenId] != address(0), "RGD NFT not deposited in registry");
+
         tokenId = _nextTokenId;
         _nextTokenId++;
         
@@ -162,7 +182,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         SGDRecord memory r = SGDRecord({
             tokenId: tokenId,
             sgdId: input.sgdId,
-            rgdId: input.rgdId,
+            rgdTokenId: input.rgdTokenId,
             cid: input.cid,
             registeredOwner: input.initialOwner,
             accessCondition: input.accessCondition,
@@ -210,7 +230,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         return PublicRecord({
             tokenId: r.tokenId,
             sgdId: r.sgdId,
-            rgdId: r.rgdId,
+            rgdTokenId: r.rgdTokenId,
             currentOwner: sgdNft.ownerOf(tokenId),
             accessCondition: r.accessCondition,
             price: r.price,
@@ -281,7 +301,19 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
         hasPurchased[tokenId][msg.sender] = true;
 
         address seller = sgdNft.ownerOf(tokenId);
-        (bool ok, ) = payable(seller).call{value: msg.value}("");
+
+        // Calculate platform fee and seller payout
+        uint256 platformFee = (msg.value * platformFeePercentage) / 10000;
+        uint256 sellerPayout = msg.value - platformFee;
+
+        // Pay the platform fee receiver
+        if (platformFee > 0) {
+            (bool feeOk, ) = payable(feeReceiver).call{value: platformFee}("");
+            if (!feeOk) revert PaymentFailed();
+        }
+
+        // Pay the seller
+        (bool ok, ) = payable(seller).call{value: sellerPayout}("");
         if (!ok) revert PaymentFailed();
 
         emit FullAccessPurchased(tokenId, msg.sender, msg.value);
@@ -374,5 +406,17 @@ contract GDMRegistry is Ownable, ReentrancyGuard {
     ) external view recordExists(tokenId) returns (bool) {
         SGDRecord storage r = _records[tokenId];
         return latestTokenBySgdId[r.sgdId] == tokenId;
+    }
+
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external override returns (bytes4) {
+        // Record the original owner of the RGD NFT
+        rgdOriginalOwners[tokenId] = from;
+        emit RGDReceived(operator, from, tokenId, data);
+        return this.onERC721Received.selector;
     }
 }

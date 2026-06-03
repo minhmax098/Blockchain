@@ -27,7 +27,7 @@ export declare namespace GDMRegistry {
   export type SGDRecordStruct = {
     tokenId: BigNumberish;
     sgdId: string;
-    rgdId: string;
+    rgdTokenId: BigNumberish;
     cid: string;
     registeredOwner: AddressLike;
     accessCondition: string;
@@ -49,7 +49,7 @@ export declare namespace GDMRegistry {
   export type SGDRecordStructOutput = [
     tokenId: bigint,
     sgdId: string,
-    rgdId: string,
+    rgdTokenId: bigint,
     cid: string,
     registeredOwner: string,
     accessCondition: string,
@@ -69,7 +69,7 @@ export declare namespace GDMRegistry {
   ] & {
     tokenId: bigint;
     sgdId: string;
-    rgdId: string;
+    rgdTokenId: bigint;
     cid: string;
     registeredOwner: string;
     accessCondition: string;
@@ -91,7 +91,7 @@ export declare namespace GDMRegistry {
   export type PublicRecordStruct = {
     tokenId: BigNumberish;
     sgdId: string;
-    rgdId: string;
+    rgdTokenId: BigNumberish;
     currentOwner: AddressLike;
     accessCondition: string;
     price: BigNumberish;
@@ -108,7 +108,7 @@ export declare namespace GDMRegistry {
   export type PublicRecordStructOutput = [
     tokenId: bigint,
     sgdId: string,
-    rgdId: string,
+    rgdTokenId: bigint,
     currentOwner: string,
     accessCondition: string,
     price: bigint,
@@ -123,7 +123,7 @@ export declare namespace GDMRegistry {
   ] & {
     tokenId: bigint;
     sgdId: string;
-    rgdId: string;
+    rgdTokenId: bigint;
     currentOwner: string;
     accessCondition: string;
     price: bigint;
@@ -140,7 +140,7 @@ export declare namespace GDMRegistry {
   export type RegisterInputStruct = {
     initialOwner: AddressLike;
     sgdId: string;
-    rgdId: string;
+    rgdTokenId: BigNumberish;
     cid: string;
     accessCondition: string;
     price: BigNumberish;
@@ -159,7 +159,7 @@ export declare namespace GDMRegistry {
   export type RegisterInputStructOutput = [
     initialOwner: string,
     sgdId: string,
-    rgdId: string,
+    rgdTokenId: bigint,
     cid: string,
     accessCondition: string,
     price: bigint,
@@ -176,7 +176,7 @@ export declare namespace GDMRegistry {
   ] & {
     initialOwner: string;
     sgdId: string;
-    rgdId: string;
+    rgdTokenId: bigint;
     cid: string;
     accessCondition: string;
     price: bigint;
@@ -198,6 +198,7 @@ export interface GDMRegistryInterface extends Interface {
     nameOrSignature:
       | "canReleaseKey"
       | "deactivateSGD"
+      | "feeReceiver"
       | "getCID"
       | "getFullRecord"
       | "getPublicRecord"
@@ -206,11 +207,15 @@ export interface GDMRegistryInterface extends Interface {
       | "isLatestVersion"
       | "latestTokenBySgdId"
       | "nextTokenId"
+      | "onERC721Received"
       | "owner"
+      | "platformFeePercentage"
       | "purchaseFullAccess"
       | "registerSGD"
       | "registrar"
       | "renounceOwnership"
+      | "rgdOriginalOwners"
+      | "setFeeConfiguration"
       | "setRegistrar"
       | "sgdNft"
       | "transferOwnership"
@@ -222,6 +227,7 @@ export interface GDMRegistryInterface extends Interface {
       | "FullAccessPurchased"
       | "LatestVersionUpdated"
       | "OwnershipTransferred"
+      | "RGDReceived"
       | "RegistrarUpdated"
       | "SGDDeactivated"
       | "SGDRegistered"
@@ -235,6 +241,10 @@ export interface GDMRegistryInterface extends Interface {
   encodeFunctionData(
     functionFragment: "deactivateSGD",
     values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "feeReceiver",
+    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "getCID",
@@ -268,7 +278,15 @@ export interface GDMRegistryInterface extends Interface {
     functionFragment: "nextTokenId",
     values?: undefined
   ): string;
+  encodeFunctionData(
+    functionFragment: "onERC721Received",
+    values: [AddressLike, AddressLike, BigNumberish, BytesLike]
+  ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "platformFeePercentage",
+    values?: undefined
+  ): string;
   encodeFunctionData(
     functionFragment: "purchaseFullAccess",
     values: [BigNumberish]
@@ -281,6 +299,14 @@ export interface GDMRegistryInterface extends Interface {
   encodeFunctionData(
     functionFragment: "renounceOwnership",
     values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "rgdOriginalOwners",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setFeeConfiguration",
+    values: [BigNumberish, AddressLike]
   ): string;
   encodeFunctionData(
     functionFragment: "setRegistrar",
@@ -302,6 +328,10 @@ export interface GDMRegistryInterface extends Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "deactivateSGD",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "feeReceiver",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "getCID", data: BytesLike): Result;
@@ -333,7 +363,15 @@ export interface GDMRegistryInterface extends Interface {
     functionFragment: "nextTokenId",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "onERC721Received",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "platformFeePercentage",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "purchaseFullAccess",
     data: BytesLike
@@ -345,6 +383,14 @@ export interface GDMRegistryInterface extends Interface {
   decodeFunctionResult(functionFragment: "registrar", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "renounceOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "rgdOriginalOwners",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "setFeeConfiguration",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -399,6 +445,31 @@ export namespace OwnershipTransferredEvent {
   export interface OutputObject {
     previousOwner: string;
     newOwner: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace RGDReceivedEvent {
+  export type InputTuple = [
+    operator: AddressLike,
+    from: AddressLike,
+    tokenId: BigNumberish,
+    data: BytesLike
+  ];
+  export type OutputTuple = [
+    operator: string,
+    from: string,
+    tokenId: bigint,
+    data: string
+  ];
+  export interface OutputObject {
+    operator: string;
+    from: string;
+    tokenId: bigint;
+    data: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -544,6 +615,8 @@ export interface GDMRegistry extends BaseContract {
     "nonpayable"
   >;
 
+  feeReceiver: TypedContractMethod<[], [string], "view">;
+
   getCID: TypedContractMethod<[tokenId: BigNumberish], [string], "view">;
 
   getFullRecord: TypedContractMethod<
@@ -580,7 +653,20 @@ export interface GDMRegistry extends BaseContract {
 
   nextTokenId: TypedContractMethod<[], [bigint], "view">;
 
+  onERC721Received: TypedContractMethod<
+    [
+      operator: AddressLike,
+      from: AddressLike,
+      tokenId: BigNumberish,
+      data: BytesLike
+    ],
+    [string],
+    "nonpayable"
+  >;
+
   owner: TypedContractMethod<[], [string], "view">;
+
+  platformFeePercentage: TypedContractMethod<[], [bigint], "view">;
 
   purchaseFullAccess: TypedContractMethod<
     [tokenId: BigNumberish],
@@ -597,6 +683,18 @@ export interface GDMRegistry extends BaseContract {
   registrar: TypedContractMethod<[], [string], "view">;
 
   renounceOwnership: TypedContractMethod<[], [void], "nonpayable">;
+
+  rgdOriginalOwners: TypedContractMethod<
+    [arg0: BigNumberish],
+    [string],
+    "view"
+  >;
+
+  setFeeConfiguration: TypedContractMethod<
+    [newFeePercentage: BigNumberish, newFeeReceiver: AddressLike],
+    [void],
+    "nonpayable"
+  >;
 
   setRegistrar: TypedContractMethod<
     [newRegistrar: AddressLike],
@@ -640,6 +738,9 @@ export interface GDMRegistry extends BaseContract {
     nameOrSignature: "deactivateSGD"
   ): TypedContractMethod<[tokenId: BigNumberish], [void], "nonpayable">;
   getFunction(
+    nameOrSignature: "feeReceiver"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
     nameOrSignature: "getCID"
   ): TypedContractMethod<[tokenId: BigNumberish], [string], "view">;
   getFunction(
@@ -680,8 +781,23 @@ export interface GDMRegistry extends BaseContract {
     nameOrSignature: "nextTokenId"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
+    nameOrSignature: "onERC721Received"
+  ): TypedContractMethod<
+    [
+      operator: AddressLike,
+      from: AddressLike,
+      tokenId: BigNumberish,
+      data: BytesLike
+    ],
+    [string],
+    "nonpayable"
+  >;
+  getFunction(
     nameOrSignature: "owner"
   ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "platformFeePercentage"
+  ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "purchaseFullAccess"
   ): TypedContractMethod<[tokenId: BigNumberish], [void], "payable">;
@@ -698,6 +814,16 @@ export interface GDMRegistry extends BaseContract {
   getFunction(
     nameOrSignature: "renounceOwnership"
   ): TypedContractMethod<[], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "rgdOriginalOwners"
+  ): TypedContractMethod<[arg0: BigNumberish], [string], "view">;
+  getFunction(
+    nameOrSignature: "setFeeConfiguration"
+  ): TypedContractMethod<
+    [newFeePercentage: BigNumberish, newFeeReceiver: AddressLike],
+    [void],
+    "nonpayable"
+  >;
   getFunction(
     nameOrSignature: "setRegistrar"
   ): TypedContractMethod<[newRegistrar: AddressLike], [void], "nonpayable">;
@@ -742,6 +868,13 @@ export interface GDMRegistry extends BaseContract {
     OwnershipTransferredEvent.InputTuple,
     OwnershipTransferredEvent.OutputTuple,
     OwnershipTransferredEvent.OutputObject
+  >;
+  getEvent(
+    key: "RGDReceived"
+  ): TypedContractEvent<
+    RGDReceivedEvent.InputTuple,
+    RGDReceivedEvent.OutputTuple,
+    RGDReceivedEvent.OutputObject
   >;
   getEvent(
     key: "RegistrarUpdated"
@@ -804,6 +937,17 @@ export interface GDMRegistry extends BaseContract {
       OwnershipTransferredEvent.InputTuple,
       OwnershipTransferredEvent.OutputTuple,
       OwnershipTransferredEvent.OutputObject
+    >;
+
+    "RGDReceived(address,address,uint256,bytes)": TypedContractEvent<
+      RGDReceivedEvent.InputTuple,
+      RGDReceivedEvent.OutputTuple,
+      RGDReceivedEvent.OutputObject
+    >;
+    RGDReceived: TypedContractEvent<
+      RGDReceivedEvent.InputTuple,
+      RGDReceivedEvent.OutputTuple,
+      RGDReceivedEvent.OutputObject
     >;
 
     "RegistrarUpdated(address)": TypedContractEvent<

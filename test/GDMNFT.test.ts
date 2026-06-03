@@ -14,22 +14,36 @@ describe("GDMNFT", function () {
     const GDMRegistry = await ethers.getContractFactory("GDMRegistry");
     const registry = await GDMRegistry.deploy(await sgdNft.getAddress(), owner.address);
 
+    const RGDNFT = await ethers.getContractFactory("RGDNFT");
+    const rgdNft = await RGDNFT.deploy(owner.address);
+
     // Set minter in SGDNFT to be the GDMRegistry
     await sgdNft.setMinter(await registry.getAddress());
 
-    return { sgdNft, registry, owner, minter, registrar, user1, user2 };
+    await rgdNft.setGDMRegistry(await registry.getAddress());
+    await rgdNft.authorizeSC(owner.address, true);
+
+    const codeHash = ethers.keccak256(ethers.toUtf8Bytes("secret1"));
+    await rgdNft.addSecretCodes([codeHash]);
+
+    return { sgdNft, registry, rgdNft, owner, minter, registrar, user1, user2 };
   }
 
   describe("registerSGD", function () {
     it("should register a new SGD successfully", async function () {
-      const { registry, sgdNft, owner, user1 } = await loadFixture(deployFixture);
+      const { registry, sgdNft, rgdNft, owner, user1 } = await loadFixture(deployFixture);
+
+      // Mint and deposit an RGD NFT
+      await rgdNft.mintRGD(user1.address, "secret1", "ipfs://rgd", ethers.keccak256(ethers.toUtf8Bytes("data")));
+      await rgdNft.connect(user1).approveRegistry(1);
+      await rgdNft.connect(user1).listRGDNFT(1);
 
       const price = ethers.parseEther("0.1");
 
       const input = {
         initialOwner: user1.address,
         sgdId: "SGD001",
-        rgdId: "RGD001",
+        rgdTokenId: 1,
         cid: "QmTestCID",
         accessCondition: "Public",
         price: price,
@@ -64,12 +78,15 @@ describe("GDMNFT", function () {
     });
 
     it("should prevent duplicate sgdId registration", async function () {
-      const { registry, user1 } = await loadFixture(deployFixture);
+      const { registry, rgdNft, user1 } = await loadFixture(deployFixture);
+
+      await rgdNft.mintRGD(user1.address, "secret1", "ipfs://rgd", ethers.keccak256(ethers.toUtf8Bytes("data")));
+      await rgdNft.connect(user1).listRGDNFT(1);
 
       const input = {
         initialOwner: user1.address,
         sgdId: "SGD001",
-        rgdId: "RGD001",
+        rgdTokenId: 1,
         cid: "QmTestCID",
         accessCondition: "Public",
         price: ethers.parseEther("0.1"),
@@ -92,14 +109,17 @@ describe("GDMNFT", function () {
 
   describe("purchaseFullAccess", function () {
     it("should allow a user to purchase full access", async function () {
-      const { registry, sgdNft, owner, user1, user2 } = await loadFixture(deployFixture);
+      const { registry, sgdNft, rgdNft, owner, user1, user2 } = await loadFixture(deployFixture);
+
+      await rgdNft.mintRGD(user1.address, "secret1", "ipfs://rgd", ethers.keccak256(ethers.toUtf8Bytes("data")));
+      await rgdNft.connect(user1).listRGDNFT(1);
 
       const price = ethers.parseEther("0.1");
 
       const input = {
         initialOwner: user1.address,
         sgdId: "SGD001",
-        rgdId: "RGD001",
+        rgdTokenId: 1,
         cid: "QmTestCID",
         accessCondition: "Public",
         price: price,
@@ -126,7 +146,11 @@ describe("GDMNFT", function () {
 
       // Check balance after
       const sellerBalanceAfter = await ethers.provider.getBalance(user1.address);
-      expect(sellerBalanceAfter - sellerBalanceBefore).to.equal(price);
+
+      const platformFee = (price * 250n) / 10000n;
+      const sellerPayout = price - platformFee;
+
+      expect(sellerBalanceAfter - sellerBalanceBefore).to.equal(sellerPayout);
 
       // Verify access
       expect(await registry.canReleaseKey(1, user2.address)).to.be.true;
@@ -137,13 +161,16 @@ describe("GDMNFT", function () {
     });
 
     it("should prevent double purchases", async function () {
-      const { registry, user1, user2 } = await loadFixture(deployFixture);
+      const { registry, rgdNft, user1, user2 } = await loadFixture(deployFixture);
+
+      await rgdNft.mintRGD(user1.address, "secret1", "ipfs://rgd", ethers.keccak256(ethers.toUtf8Bytes("data")));
+      await rgdNft.connect(user1).listRGDNFT(1);
 
       const price = ethers.parseEther("0.1");
       const input = {
         initialOwner: user1.address,
         sgdId: "SGD001",
-        rgdId: "RGD001",
+        rgdTokenId: 1,
         cid: "QmTestCID",
         accessCondition: "Public",
         price: price,
@@ -168,14 +195,17 @@ describe("GDMNFT", function () {
     });
 
     it("should revert on wrong payment amount", async function () {
-      const { registry, user1, user2 } = await loadFixture(deployFixture);
+      const { registry, rgdNft, user1, user2 } = await loadFixture(deployFixture);
+
+      await rgdNft.mintRGD(user1.address, "secret1", "ipfs://rgd", ethers.keccak256(ethers.toUtf8Bytes("data")));
+      await rgdNft.connect(user1).listRGDNFT(1);
 
       const price = ethers.parseEther("0.1");
       const wrongPrice = ethers.parseEther("0.05");
       const input = {
         initialOwner: user1.address,
         sgdId: "SGD001",
-        rgdId: "RGD001",
+        rgdTokenId: 1,
         cid: "QmTestCID",
         accessCondition: "Public",
         price: price,
@@ -200,13 +230,16 @@ describe("GDMNFT", function () {
 
   describe("updateSGDVersion", function () {
     it("should correctly update the version, save history, update URI and change owner if provided", async function () {
-      const { registry, sgdNft, owner, user1, user2 } = await loadFixture(deployFixture);
+      const { registry, sgdNft, rgdNft, owner, user1, user2 } = await loadFixture(deployFixture);
+
+      await rgdNft.mintRGD(user1.address, "secret1", "ipfs://rgd", ethers.keccak256(ethers.toUtf8Bytes("data")));
+      await rgdNft.connect(user1).listRGDNFT(1);
 
       const price = ethers.parseEther("0.1");
       const input = {
         initialOwner: user1.address,
         sgdId: "SGD001",
-        rgdId: "RGD001",
+        rgdTokenId: 1,
         cid: "QmTestCID_v0",
         accessCondition: "Public",
         price: price,
@@ -260,12 +293,15 @@ describe("GDMNFT", function () {
 
   describe("deactivateSGD & isLatestVersion", function () {
     it("should deactivate an active SGD", async function () {
-      const { registry, user1 } = await loadFixture(deployFixture);
+      const { registry, rgdNft, user1 } = await loadFixture(deployFixture);
+
+      await rgdNft.mintRGD(user1.address, "secret1", "ipfs://rgd", ethers.keccak256(ethers.toUtf8Bytes("data")));
+      await rgdNft.connect(user1).listRGDNFT(1);
 
       const input = {
         initialOwner: user1.address,
         sgdId: "SGD001",
-        rgdId: "RGD001",
+        rgdTokenId: 1,
         cid: "QmTestCID",
         accessCondition: "Public",
         price: ethers.parseEther("0.1"),
@@ -292,12 +328,15 @@ describe("GDMNFT", function () {
     });
 
     it("should return true for isLatestVersion", async function () {
-      const { registry, user1 } = await loadFixture(deployFixture);
+      const { registry, rgdNft, user1 } = await loadFixture(deployFixture);
+
+      await rgdNft.mintRGD(user1.address, "secret1", "ipfs://rgd", ethers.keccak256(ethers.toUtf8Bytes("data")));
+      await rgdNft.connect(user1).listRGDNFT(1);
 
       const input = {
         initialOwner: user1.address,
         sgdId: "SGD001",
-        rgdId: "RGD001",
+        rgdTokenId: 1,
         cid: "QmTestCID",
         accessCondition: "Public",
         price: ethers.parseEther("0.1"),
