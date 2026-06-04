@@ -415,6 +415,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         bytes calldata data
     ) external override returns (bytes4) {
         // Record the original owner of the RGD NFT
+        // require(msg.sender == address(rgdNftContract), "Only accept from RGDNFT");
         rgdOriginalOwners[tokenId] = from;
         emit RGDReceived(operator, from, tokenId, data);
         return this.onERC721Received.selector;
