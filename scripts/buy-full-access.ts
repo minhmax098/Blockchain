@@ -1,11 +1,10 @@
 // buyer can access full record 
-import { network } from "hardhat";
+import { ethers } from "hardhat";
 import fs from "fs";
 import path from "path";
 
 async function main() {
-    const { ethers } = await network.connect();
-    const tokenId = Number(process.argv[2] || "1");
+    const tokenId = Number(process.argv[2]) || "1";
 
     const addresses = JSON.parse(
         fs.readFileSync(path.join(__dirname, "..", "backend", "contract-addresses.json"), "utf8")
