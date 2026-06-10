@@ -18,12 +18,12 @@ describe("GDMRegistry System Comprehensive Tests", function () {
     const RGDNFT = await ethers.getContractFactory("RGDNFT");
     const rgdNft = await RGDNFT.deploy(owner.address);
 
-    // 4. Thiết lập liên kết phân quyền hệ thống (Cross-linking Configuration)
+    // 4. Establish system permission links (Cross-linking Configuration)
     await sgdNft.setMinter(await registry.getAddress());
     await rgdNft.setGDMRegistry(await registry.getAddress());
     await rgdNft.authorizeSC(owner.address, true);
 
-    // Nạp mã code whitelist mồi để test luồng đúc dữ liệu thô
+    // Load the whitelist code to test the raw data casting flow.
     const codeHash = ethers.keccak256(ethers.toUtf8Bytes("secret1"));
     await rgdNft.addSecretCodes([codeHash]);
 
@@ -34,17 +34,17 @@ describe("GDMRegistry System Comprehensive Tests", function () {
     it("should register a new SGD successfully and trigger lineage checks", async function () {
       const { registry, sgdNft, rgdNft, user1 } = await loadFixture(deployFixture);
 
-      // Mint RGD NFT thô cho bệnh nhân (user1)
+      // Mint RGD NFT raw for patient (user1)
       await rgdNft.mintRGD(user1.address, "secret1", "ipfs://rgd", ethers.keccak256(ethers.toUtf8Bytes("data")));
       
-      // Đột phá: Gửi lệnh list trực tiếp, kích hoạt onERC721Received callback tự động ghi nhận chủ sở hữu gốc
+      // Send a list command directly, activate the onERC721Received callback to automatically record the original owner.
       await rgdNft.connect(user1).listRGDNFT(1);
 
       const price = ethers.parseEther("0.1");
       const input = {
         initialOwner: user1.address,
         sgdId: "SGD001",
-        rgdTokenId: 1, // Khớp nối on-chain Parent Token ID
+        rgdTokenId: 1, // on-chain Parent Token ID
         cid: "QmTestCID",
         accessCondition: "Public",
         price: price,
@@ -73,7 +73,7 @@ describe("GDMRegistry System Comprehensive Tests", function () {
       expect(record.active).to.be.true;
       expect(record.version).to.equal(0);
 
-      // Kiểm tra trạng thái đúc và URI của SGD NFT tài sản
+      // Check the minting status and URI of the SGD NFT asset
       expect(await sgdNft.ownerOf(1)).to.equal(user1.address);
       expect(await sgdNft.tokenURI(1)).to.equal("ipfs://testURI");
     });
@@ -115,7 +115,7 @@ describe("GDMRegistry System Comprehensive Tests", function () {
       await rgdNft.mintRGD(user1.address, "secret1", "ipfs://rgd", ethers.keccak256(ethers.toUtf8Bytes("data")));
       await rgdNft.connect(user1).listRGDNFT(1);
 
-      const price = ethers.parseEther("1.0"); // Dùng hằng số 1 ETH để dễ tính toán dòng tiền
+      const price = ethers.parseEther("1.0"); // Use the constant 1 ETH to easily calculate cash flow
       const input = {
         initialOwner: user1.address,
         sgdId: "SGD001",
@@ -137,27 +137,27 @@ describe("GDMRegistry System Comprehensive Tests", function () {
 
       await registry.registerSGD(input);
 
-      // Đo lường số dư các ví trước khi tiến hành mua bán dữ liệu
+      // Measure the balances of the wallets before proceeding with the data purchase
       const sellerBalanceBefore = await ethers.provider.getBalance(user1.address);
-      const feeReceiverBalanceBefore = await ethers.provider.getBalance(owner.address); // Mặc định feeReceiver là owner
+      const feeReceiverBalanceBefore = await ethers.provider.getBalance(owner.address); // Default feeReceiver is the owner
 
       await expect(registry.connect(user2).purchaseFullAccess(1, { value: price }))
         .to.emit(registry, "FullAccessPurchased")
         .withArgs(1, user2.address, price);
 
-      // Đo lường số dư các ví sau giao dịch quyết toán
+      // Measure the balances of the wallets after the settlement transaction
       const sellerBalanceAfter = await ethers.provider.getBalance(user1.address);
       const feeReceiverBalanceAfter = await ethers.provider.getBalance(owner.address);
 
-      // Tính toán dòng tiền cắt nhỏ theo mô hình 2.5% - 97.5%
-      const expectedPlatformFee = (price * 250n) / 10000n; // 2.5% Phí quản trị hệ thống
-      const expectedSellerPayout = price - expectedPlatformFee; // 97.5% Hoa hồng trả chủ dữ liệu
+      // Calculate the cash flow split according to the 2.5% - 97.5% model
+      const expectedPlatformFee = (price * 250n) / 10000n; // 2.5% Platform Fee
+      const expectedSellerPayout = price - expectedPlatformFee; // 97.5% Seller Payout
 
-      // Khẳng định số tiền phân chia on-chain chính xác tuyệt đối
+      // Assert the on-chain fund distribution is accurate
       expect(sellerBalanceAfter - sellerBalanceBefore).to.equal(expectedSellerPayout);
       expect(feeReceiverBalanceAfter - feeReceiverBalanceBefore).to.equal(expectedPlatformFee);
 
-      // Xác thực quyền truy cập hạ tầng
+      // Verify the infrastructure access rights
       expect(await registry.canReleaseKey(1, user2.address)).to.be.true;
       const cid = await registry.connect(user2).getCID(1);
       expect(cid).to.equal("QmTestCID");
@@ -226,7 +226,7 @@ describe("GDMRegistry System Comprehensive Tests", function () {
 
       await registry.registerSGD(input);
 
-      // Thực thi Address Rotation: Cập nhật thông tin đồng thời dịch chuyển NFT sang ví nhận tiền mới (user2)
+      // Execute Address Rotation: Update information and move the NFT to the new receiving wallet (user2).
       const newPrice = ethers.parseEther("0.2");
       await expect(registry.updateSGDVersion(
         1,
@@ -234,12 +234,12 @@ describe("GDMRegistry System Comprehensive Tests", function () {
         "Private",
         newPrice,
         "ipfs://testURI_v1",
-        user2.address // Ví nhận lợi ích kinh tế mới
+        user2.address // New wallet receiving the economic benefits
       ))
       .to.emit(registry, "SGDVersionUpdated")
       .withArgs(1, "SGD001", "Private", newPrice, 1, user2.address);
 
-      // Kiểm tra bản ghi hiện tại phản ánh chính xác trạng thái ví mới
+      // Check the current record reflects the correct state of the new wallet
       const record = await registry.getFullRecord(1);
       expect(record.cid).to.equal("QmTestCID_v1");
       expect(record.accessCondition).to.equal("Private");
@@ -247,16 +247,16 @@ describe("GDMRegistry System Comprehensive Tests", function () {
       expect(record.version).to.equal(1);
       expect(record.registeredOwner).to.equal(user2.address);
 
-      // Điểm mấu chốt của GS: Kiểm tra tài sản NFT ERC-721 đã dịch chuyển chủ sở hữu on-chain thành công
+      // Points: Verify that the NFT ERC-721 has successfully transferred ownership on-chain
       expect(await sgdNft.ownerOf(1)).to.equal(user2.address);
       expect(await sgdNft.tokenURI(1)).to.equal("ipfs://testURI_v1");
 
-      // Kiểm tra tính bất biến của mảng lịch sử (History tracking)
+      // Points: Verify the immutability of the version history array (History tracking)
       const versions = await registry.getVersionsOfSgd(1);
       expect(versions.length).to.equal(1);
       expect(versions[0].cid).to.equal("QmTestCID_v0");
       expect(versions[0].version).to.equal(0);
-      expect(versions[0].registeredOwner).to.equal(user1.address); // Bản ghi v0 vẫn lưu ví cũ để kiểm toán
+      expect(versions[0].registeredOwner).to.equal(user1.address); // Version 0 record still stores the old wallet for auditing purposes
     });
   });
 });

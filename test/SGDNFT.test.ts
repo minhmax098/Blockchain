@@ -9,7 +9,7 @@ describe("SGDNFT Contract Unit Tests", function () {
     const SGDNFT = await ethers.getContractFactory("SGDNFT");
     const sgdNft = await SGDNFT.deploy(owner.address);
 
-    // Thiết lập một địa chỉ giả lập làm Registry (Minter)
+    // Set up a dummy address to act as the Registry (Minter).
     await sgdNft.setMinter(fakeRegistry.address);
 
     return { sgdNft, owner, fakeRegistry, user1, user2 };
@@ -36,13 +36,13 @@ describe("SGDNFT Contract Unit Tests", function () {
   it("Should allow Minter to execute transferByMinter for Address Rotation", async function () {
     const { sgdNft, fakeRegistry, user1, user2 } = await loadFixture(deploySGDFixture);
 
-    // Mint token 1 cho user1
+    // Mint token 1 for user1
     await sgdNft.connect(fakeRegistry).mint(user1.address, 1);
 
-    // Giả lập Registry gọi hàm dịch chuyển quyền sở hữu sang ví nhận tiền mới (user2)
+    // Simulate the Registry to call a function to transfer ownership to the new receiving wallet (user2).
     await sgdNft.connect(fakeRegistry).transferByMinter(user1.address, user2.address, 1);
 
-    // Quyền sở hữu phải thay đổi on-chain
+    // Ownership must change on-chain
     expect(await sgdNft.ownerOf(1)).to.equal(user2.address);
   });
 });
