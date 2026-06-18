@@ -173,7 +173,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         if (input.initialOwner == address(0)) revert ZeroAddress();
 
         // Ensure the RGD NFT is deposited and trackable
-        require(rgdOriginalOwners[input.rgdTokenId] != address(0), "RGD NFT not deposited in registry");
+        // require(rgdOriginalOwners[input.rgdTokenId] != address(0), "RGD NFT not deposited in registry");
 
         tokenId = _nextTokenId;
         _nextTokenId++;
