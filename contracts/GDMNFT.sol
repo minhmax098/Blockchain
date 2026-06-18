@@ -420,4 +420,18 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         emit RGDReceived(operator, from, tokenId, data);
         return this.onERC721Received.selector;
     }
+
+    // TAB BUYER Decrypt
+    function tacoCanDecrypt(
+        uint256 tokenId,
+        address user
+    ) external view recordExists(tokenId) returns (uint256) {
+        SGDRecord storage r = _records[tokenId];
+
+        // Check: Record active + new version + user wallet purchased transaction completed
+        if (r.active && latestTokenBySgdId[r.sgdId] == tokenId && hasPurchased[tokenId][user]) {
+            return 1; // Return 1 vs comparator "==" value: 1 in frontend
+        }
+        return 0;
+    }
 }

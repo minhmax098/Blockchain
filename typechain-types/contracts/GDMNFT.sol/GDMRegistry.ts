@@ -218,6 +218,7 @@ export interface GDMRegistryInterface extends Interface {
       | "setFeeConfiguration"
       | "setRegistrar"
       | "sgdNft"
+      | "tacoCanDecrypt"
       | "transferOwnership"
       | "updateSGDVersion"
   ): FunctionFragment;
@@ -314,6 +315,10 @@ export interface GDMRegistryInterface extends Interface {
   ): string;
   encodeFunctionData(functionFragment: "sgdNft", values?: undefined): string;
   encodeFunctionData(
+    functionFragment: "tacoCanDecrypt",
+    values: [BigNumberish, AddressLike]
+  ): string;
+  encodeFunctionData(
     functionFragment: "transferOwnership",
     values: [AddressLike]
   ): string;
@@ -398,6 +403,10 @@ export interface GDMRegistryInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "sgdNft", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "tacoCanDecrypt",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "transferOwnership",
     data: BytesLike
@@ -704,6 +713,12 @@ export interface GDMRegistry extends BaseContract {
 
   sgdNft: TypedContractMethod<[], [string], "view">;
 
+  tacoCanDecrypt: TypedContractMethod<
+    [tokenId: BigNumberish, user: AddressLike],
+    [bigint],
+    "view"
+  >;
+
   transferOwnership: TypedContractMethod<
     [newOwner: AddressLike],
     [void],
@@ -830,6 +845,13 @@ export interface GDMRegistry extends BaseContract {
   getFunction(
     nameOrSignature: "sgdNft"
   ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "tacoCanDecrypt"
+  ): TypedContractMethod<
+    [tokenId: BigNumberish, user: AddressLike],
+    [bigint],
+    "view"
+  >;
   getFunction(
     nameOrSignature: "transferOwnership"
   ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
