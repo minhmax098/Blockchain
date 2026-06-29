@@ -15,7 +15,7 @@ describe("SGDNFT Contract Unit Tests", function () {
     return { sgdNft, owner, fakeRegistry, user1, user2 };
   }
 
-  it("Should allow the authorized Minter (Registry) to mint SGD NFT", async function () {
+  it("Should allow the authorized Minter to mint SGD NFT", async function () {
     const { sgdNft, fakeRegistry, user1 } = await loadFixture(deploySGDFixture);
 
     await expect(sgdNft.connect(fakeRegistry).mintWithURI(user1.address, 1, "ipfs://sgd_uri"))
