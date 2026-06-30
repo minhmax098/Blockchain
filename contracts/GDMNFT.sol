@@ -419,20 +419,20 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         SGDRecord storage record = _records[tokenId];
         if (!record.active) revert InactiveRecord();
 
-        // 1. Chuyển trạng thái sang Inactive
+        // 1. Switch to Inactive state
         record.active = false;
 
         bytes32 pipelineHash = keccak256(abi.encodePacked(record.rgdTokenId, record.sequencingInfo));
         _pipelineRegistry[pipelineHash] = PipelineStatus.Deactivated;
 
-        // 2. XOAY VÒNG VÍ (Address Rotation): Chuyển NFT sang ví mới được chỉ định
+        // 2. Address Rotation: Transfer NFTs to the designated new wallet
         address oldOwner = record.registeredOwner;
         sgdNft.transferByMinter(oldOwner, newWalletForActivation, tokenId);
         record.registeredOwner = newWalletForActivation;
 
         emit SGDDeactivated(tokenId);
 
-        // Emit thêm log để ghi nhận phiên bản và địa chỉ quản lý mới
+        // Emit adds logs to record the new version and administrator address
         emit SGDVersionUpdated(
             tokenId,
             record.sgdId,
@@ -443,7 +443,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         );
     }
 
-    // Dành riêng cho ví mới kích hoạt lại trạng thái bán dữ liệu
+    // Dedicated for the new wallet to reactivate the data selling status
     function activateSGD(
         uint256 tokenId
     ) external onlyRecordOwner(tokenId) recordExists(tokenId) {
@@ -451,13 +451,13 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         if (record.active) revert("Error: Record is already active");
         if (latestTokenBySgdId[record.sgdId] != tokenId) revert NotLatestVersion();
 
-        // 1. Bật lại trạng thái hoạt động
+        // 1. Restart the operating state
         record.active = true;
 
         bytes32 pipelineHash = keccak256(abi.encodePacked(record.rgdTokenId, record.sequencingInfo));
         _pipelineRegistry[pipelineHash] = PipelineStatus.Active;
 
-        // 2. Tăng số version để tạo tính liên tục lịch sử chính sách
+        // 2. Increase the version number to create a continuous history of policy changes
         record.version = record.version + 1;
 
         emit SGDVersionUpdated(

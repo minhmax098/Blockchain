@@ -134,7 +134,7 @@ describe("GDMRegistry System Comprehensive Tests", function () {
 
       await registry.registerSGD(input1);
 
-      // Thử đăng ký một SGD mới với sgdId khác, nhưng rgdTokenId và sequencingInfo y hệt
+      // Try registering new SGD with different sgdId, but the rgdTokenId and sequencingInfo are identical.
       const input2 = {
         ...input1,
         sgdId: "SGD002"
@@ -184,7 +184,7 @@ describe("GDMRegistry System Comprehensive Tests", function () {
       expect(record.registeredOwner).to.equal(user2.address);
       expect(await sgdNft.ownerOf(1)).to.equal(user2.address);
 
-      // User1 cố gắng reactivate -> Bị chặn vì đã mất quyền sở hữu
+      // User1 attempts to reactivate -> blocked because ownership has been lost
       await expect(registry.connect(user1).activateSGD(1)).to.be.revertedWithCustomError(registry, "Unauthorized");
 
       // Reactivate by user2 (New Data Owner)
@@ -247,7 +247,7 @@ describe("GDMRegistry System Comprehensive Tests", function () {
       expect(sellerBalanceAfter - sellerBalanceBefore).to.equal(expectedSellerPayout);
       expect(feeReceiverBalanceAfter - feeReceiverBalanceBefore).to.equal(expectedPlatformFee);
 
-      // Xác thực quyền truy cập hạ tầng
+      // Authentication of infrastructure access
       expect(await registry.tacoCanDecrypt(1, user2.address)).to.equal(1);
       const cid = await registry.connect(user2).getCID(1);
       expect(cid).to.equal("QmTestCID");
@@ -281,10 +281,10 @@ describe("GDMRegistry System Comprehensive Tests", function () {
 
       await registry.registerSGD(input);
 
-      // Chủ sở hữu deactivate SGD (rotate sang user2, ở đây chỉ mượn user2 làm newWallet)
+      // The owner deactivates SGD (rotates to user2, here user2 is just being used as newWallet)
       await registry.connect(user1).deactivateSGD(1, user2.address);
 
-      // Một user khác (hoặc bất kỳ ai) cố gắng mua SGD đã deactivated
+      // Another user (or anyone) attempting to buy SGD has been deactivated
       await expect(registry.connect(user2).purchaseFullAccess(1, { value: price }))
         .to.be.revertedWithCustomError(registry, "InactiveRecord");
 
