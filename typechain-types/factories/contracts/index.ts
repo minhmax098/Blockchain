@@ -2,5 +2,5 @@
 /* tslint:disable */
 /* eslint-disable */
 export * as gdmnftSol from "./GDMNFT.sol";
-export { RGDNFT__factory } from "./RGDNFT__factory";
+export * as rgdnftSol from "./RGDNFT.sol";
 export { SGDNFT__factory } from "./SGDNFT__factory";

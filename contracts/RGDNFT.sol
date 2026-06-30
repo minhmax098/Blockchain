@@ -120,4 +120,23 @@ contract RGDNFT is ERC721URIStorage, Ownable {
     function exists(uint256 tokenId) external view returns (bool) {
         return _ownerOf(tokenId) != address(0);
     }
+
+    // SC calls this to check if this combination has been deactivated or run before doing actual work
+    function isPipelineAvailable(
+        uint256 rgdTokenId,
+        string memory sequencingInfo
+    ) external view returns (bool) {
+        if (gdmRegistry == address(0)) return true;
+
+        // 0 is PipelineStatus.None in GDMRegistry
+        try IGDMRegistry(gdmRegistry).getPipelineStatus(rgdTokenId, sequencingInfo) returns (uint8 status) {
+            return status == 0; // Only PipelineStatus.None means it's available
+        } catch {
+            return true;
+        }
+    }
+}
+
+interface IGDMRegistry {
+    function getPipelineStatus(uint256 rgdTokenId, string memory sequencingInfo) external view returns (uint8);
 }
