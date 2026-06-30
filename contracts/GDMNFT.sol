@@ -188,7 +188,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         if (input.initialOwner == address(0)) revert ZeroAddress();
 
         // Ensure the RGD NFT is deposited and trackable
-        require(rgdOriginalOwners[input.rgdTokenId] != address(0), "RGD NFT not deposited in registry");
+        // require(rgdOriginalOwners[input.rgdTokenId] != address(0), "RGD NFT not deposited in registry");
 
         // Intrinsic Fingerprint: rgdTokenId + sequencingInfo
         bytes32 pipelineHash = keccak256(abi.encodePacked(input.rgdTokenId, input.sequencingInfo));
@@ -516,5 +516,19 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         rgdOriginalOwners[tokenId] = from;
         emit RGDReceived(operator, from, tokenId, data);
         return this.onERC721Received.selector;
+    }
+
+    // TAB BUYER Decrypt
+    function tacoCanDecrypt(
+        uint256 tokenId,
+        address user
+    ) external view recordExists(tokenId) returns (uint256) {
+        SGDRecord storage r = _records[tokenId];
+
+        // Check: Record active + new version + user wallet purchased transaction completed
+        if (r.active && latestTokenBySgdId[r.sgdId] == tokenId && hasPurchased[tokenId][user]) {
+            return 1; // Return 1 vs comparator "==" value: 1 in frontend
+        }
+        return 0;
     }
 }

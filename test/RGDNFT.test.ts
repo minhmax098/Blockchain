@@ -9,10 +9,10 @@ describe("RGDNFT Contract Unit Tests", function () {
     const RGDNFT = await ethers.getContractFactory("RGDNFT");
     const rgdNft = await RGDNFT.deploy(owner.address);
 
-    // Cấp quyền SC cho tài khoản sc
+    // Grant SC permissions to the SC account.
     await rgdNft.authorizeSC(sc.address, true);
 
-    // Thêm mã code hash mồi vào whitelist
+    // Add the decoy hash code to the whitelist.
     const codeHash = ethers.keccak256(ethers.toUtf8Bytes("secret_code_1"));
     await rgdNft.addSecretCodes([codeHash]);
 
@@ -43,10 +43,10 @@ describe("RGDNFT Contract Unit Tests", function () {
     const { rgdNft, sc, user1, user2 } = await loadFixture(deployRGDFixture);
     const dataHash = ethers.keccak256(ethers.toUtf8Bytes("dna_raw_data"));
 
-    // Lần 1: Thành công
+    // Successfully
     await rgdNft.connect(sc).mintRGD(user1.address, "secret_code_1", "ipfs://rgd_1", dataHash);
 
-    // Lần 2: Cố tình dùng lại code "secret_code_1" -> Phải bị reverted
+    // Attempt to reuse the same code "secret_code_1" -> Should be reverted
     await expect(
       rgdNft.connect(sc).mintRGD(user2.address, "secret_code_1", "ipfs://rgd_2", dataHash)
     ).to.be.revertedWith("Error: This code has already been used for registration");
