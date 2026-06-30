@@ -248,9 +248,48 @@ describe("GDMRegistry System Comprehensive Tests", function () {
       expect(feeReceiverBalanceAfter - feeReceiverBalanceBefore).to.equal(expectedPlatformFee);
 
       // Xác thực quyền truy cập hạ tầng
-      expect(await registry.canReleaseKey(1, user2.address)).to.be.true;
+      expect(await registry.tacoCanDecrypt(1, user2.address)).to.equal(1);
       const cid = await registry.connect(user2).getCID(1);
       expect(cid).to.equal("QmTestCID");
+    });
+
+    it("should prevent purchasing a deactivated SGD", async function () {
+      const { registry, rgdNft, user1, user2 } = await loadFixture(deployFixture);
+
+      await rgdNft.mintRGD(user1.address, "secret1", "ipfs://rgd", ethers.keccak256(ethers.toUtf8Bytes("data")));
+      await rgdNft.connect(user1).listRGDNFT(1);
+
+      const price = ethers.parseEther("0.1");
+      const input = {
+        initialOwner: user1.address,
+        sgdId: "SGD001",
+        rgdTokenId: 1,
+        cid: "QmTestCID",
+        accessCondition: "Public",
+        price: price,
+        collectionDate: 1234567890,
+        sampleType: "Blood",
+        patientRef: "P001",
+        consentCode: "C001",
+        sampleHash: ethers.zeroPadValue("0x1234", 32),
+        encryptionScheme: "AES",
+        sequencingInfo: "SeqInfo",
+        signatureRef: "SigRef",
+        encHash: ethers.zeroPadValue("0x5678", 32),
+        tokenURI: "ipfs://testURI"
+      };
+
+      await registry.registerSGD(input);
+
+      // Chủ sở hữu deactivate SGD (rotate sang user2, ở đây chỉ mượn user2 làm newWallet)
+      await registry.connect(user1).deactivateSGD(1, user2.address);
+
+      // Một user khác (hoặc bất kỳ ai) cố gắng mua SGD đã deactivated
+      await expect(registry.connect(user2).purchaseFullAccess(1, { value: price }))
+        .to.be.revertedWithCustomError(registry, "InactiveRecord");
+
+      // Ensure DACN node rejects decryption
+      expect(await registry.tacoCanDecrypt(1, user2.address)).to.equal(0);
     });
 
     it("should prevent double purchases from the same buyer address", async function () {

@@ -344,19 +344,23 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
 
     // TACo/SC validates buyer eligibility before releasing decryption key shares
     // SC/TACo check before release key.
-    function canReleaseKey(
+    function tacoCanDecrypt(
         uint256 tokenId, 
         address buyer
-    ) external view recordExists(tokenId) returns (bool) {
+    ) external view recordExists(tokenId) returns (uint8) {
         SGDRecord storage r = _records[tokenId];
         bytes32 pipelineHash = keccak256(abi.encodePacked(r.rgdTokenId, r.sequencingInfo));
 
-        return (
+        if (
             r.active &&
             _pipelineRegistry[pipelineHash] == PipelineStatus.Active &&
             latestTokenBySgdId[r.sgdId] == tokenId &&
             hasPurchased[tokenId][buyer]
-        );
+        ) {
+            return 1;
+        }
+
+        return 0;
     }
 
     // use when data owner wants to update access condition or price.
@@ -463,6 +467,22 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
             record.price,
             record.version,
             record.registeredOwner
+        );
+    }
+
+    // Dedicated view function for the frontend DApp to pre-check if an SGD is purchasable.
+    // It prevents users from trying to buy a deactivated asset or one that is not the latest version.
+    function isSGDPurchasable(string calldata sgdId) external view returns (bool) {
+        uint256 latestTokenId = latestTokenBySgdId[sgdId];
+        if (latestTokenId == 0) return false;
+
+        SGDRecord storage r = _records[latestTokenId];
+
+        bytes32 pipelineHash = keccak256(abi.encodePacked(r.rgdTokenId, r.sequencingInfo));
+
+        return (
+            r.active &&
+            _pipelineRegistry[pipelineHash] == PipelineStatus.Active
         );
     }
 
