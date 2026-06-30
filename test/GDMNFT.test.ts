@@ -106,6 +106,96 @@ describe("GDMRegistry System Comprehensive Tests", function () {
       await registry.registerSGD(input);
       await expect(registry.registerSGD(input)).to.be.revertedWithCustomError(registry, "SGDAlreadyRegistered");
     });
+
+    it("should prevent semantic duplication (same rgdTokenId and pipelineInfo)", async function () {
+      const { registry, rgdNft, user1 } = await loadFixture(deployFixture);
+
+      await rgdNft.mintRGD(user1.address, "secret1", "ipfs://rgd", ethers.keccak256(ethers.toUtf8Bytes("data")));
+      await rgdNft.connect(user1).listRGDNFT(1);
+
+      const input1 = {
+        initialOwner: user1.address,
+        sgdId: "SGD001",
+        rgdTokenId: 1,
+        cid: "QmTestCID",
+        accessCondition: "Public",
+        price: ethers.parseEther("0.1"),
+        collectionDate: 1234567890,
+        sampleType: "Blood",
+        patientRef: "P001",
+        consentCode: "C001",
+        sampleHash: ethers.zeroPadValue("0x1234", 32),
+        encryptionScheme: "AES",
+        sequencingInfo: "Semantic_Pipeline_V1", // Pipeline info
+        signatureRef: "SigRef",
+        encHash: ethers.zeroPadValue("0x5678", 32),
+        tokenURI: "ipfs://testURI"
+      };
+
+      await registry.registerSGD(input1);
+
+      // Thử đăng ký một SGD mới với sgdId khác, nhưng rgdTokenId và sequencingInfo y hệt
+      const input2 = {
+        ...input1,
+        sgdId: "SGD002"
+      };
+
+      await expect(registry.registerSGD(input2)).to.be.revertedWithCustomError(registry, "SGDAlreadyRegistered");
+    });
+  });
+
+  describe("Function: deactivateSGD & activateSGD (Address Rotation)", function () {
+    it("should deactivate, rotate address, and allow new address to reactivate", async function () {
+      const { registry, sgdNft, rgdNft, user1, user2 } = await loadFixture(deployFixture);
+
+      await rgdNft.mintRGD(user1.address, "secret1", "ipfs://rgd", ethers.keccak256(ethers.toUtf8Bytes("data")));
+      await rgdNft.connect(user1).listRGDNFT(1);
+
+      const input = {
+        initialOwner: user1.address,
+        sgdId: "SGD001",
+        rgdTokenId: 1,
+        cid: "QmTestCID",
+        accessCondition: "Public",
+        price: ethers.parseEther("0.1"),
+        collectionDate: 1234567890,
+        sampleType: "Blood",
+        patientRef: "P001",
+        consentCode: "C001",
+        sampleHash: ethers.zeroPadValue("0x1234", 32),
+        encryptionScheme: "AES",
+        sequencingInfo: "SeqInfo",
+        signatureRef: "SigRef",
+        encHash: ethers.zeroPadValue("0x5678", 32),
+        tokenURI: "ipfs://testURI"
+      };
+
+      await registry.registerSGD(input);
+
+      // Deactivate by user1 (Data Owner) with address rotation to user2
+      await expect(registry.connect(user1).deactivateSGD(1, user2.address))
+        .to.emit(registry, "SGDDeactivated")
+        .withArgs(1)
+        .and.to.emit(registry, "SGDVersionUpdated")
+        .withArgs(1, "SGD001", "Public", ethers.parseEther("0.1"), 0, user2.address);
+
+      let record = await registry.getFullRecord(1);
+      expect(record.active).to.be.false;
+      expect(record.registeredOwner).to.equal(user2.address);
+      expect(await sgdNft.ownerOf(1)).to.equal(user2.address);
+
+      // User1 cố gắng reactivate -> Bị chặn vì đã mất quyền sở hữu
+      await expect(registry.connect(user1).activateSGD(1)).to.be.revertedWithCustomError(registry, "Unauthorized");
+
+      // Reactivate by user2 (New Data Owner)
+      await expect(registry.connect(user2).activateSGD(1))
+        .to.emit(registry, "SGDVersionUpdated")
+        .withArgs(1, "SGD001", "Public", ethers.parseEther("0.1"), 1, user2.address);
+
+      record = await registry.getFullRecord(1);
+      expect(record.active).to.be.true;
+      expect(record.version).to.equal(1);
+    });
   });
 
   describe("Function: purchaseFullAccess", function () {
@@ -157,10 +247,49 @@ describe("GDMRegistry System Comprehensive Tests", function () {
       expect(sellerBalanceAfter - sellerBalanceBefore).to.equal(expectedSellerPayout);
       expect(feeReceiverBalanceAfter - feeReceiverBalanceBefore).to.equal(expectedPlatformFee);
 
-      // Verify the infrastructure access rights
-      expect(await registry.canReleaseKey(1, user2.address)).to.be.true;
+      // Xác thực quyền truy cập hạ tầng
+      expect(await registry.tacoCanDecrypt(1, user2.address)).to.equal(1);
       const cid = await registry.connect(user2).getCID(1);
       expect(cid).to.equal("QmTestCID");
+    });
+
+    it("should prevent purchasing a deactivated SGD", async function () {
+      const { registry, rgdNft, user1, user2 } = await loadFixture(deployFixture);
+
+      await rgdNft.mintRGD(user1.address, "secret1", "ipfs://rgd", ethers.keccak256(ethers.toUtf8Bytes("data")));
+      await rgdNft.connect(user1).listRGDNFT(1);
+
+      const price = ethers.parseEther("0.1");
+      const input = {
+        initialOwner: user1.address,
+        sgdId: "SGD001",
+        rgdTokenId: 1,
+        cid: "QmTestCID",
+        accessCondition: "Public",
+        price: price,
+        collectionDate: 1234567890,
+        sampleType: "Blood",
+        patientRef: "P001",
+        consentCode: "C001",
+        sampleHash: ethers.zeroPadValue("0x1234", 32),
+        encryptionScheme: "AES",
+        sequencingInfo: "SeqInfo",
+        signatureRef: "SigRef",
+        encHash: ethers.zeroPadValue("0x5678", 32),
+        tokenURI: "ipfs://testURI"
+      };
+
+      await registry.registerSGD(input);
+
+      // Chủ sở hữu deactivate SGD (rotate sang user2, ở đây chỉ mượn user2 làm newWallet)
+      await registry.connect(user1).deactivateSGD(1, user2.address);
+
+      // Một user khác (hoặc bất kỳ ai) cố gắng mua SGD đã deactivated
+      await expect(registry.connect(user2).purchaseFullAccess(1, { value: price }))
+        .to.be.revertedWithCustomError(registry, "InactiveRecord");
+
+      // Ensure DACN node rejects decryption
+      expect(await registry.tacoCanDecrypt(1, user2.address)).to.equal(0);
     });
 
     it("should prevent double purchases from the same buyer address", async function () {

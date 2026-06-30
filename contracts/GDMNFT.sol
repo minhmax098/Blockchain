@@ -13,6 +13,8 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
 
     uint256 private _nextTokenId = 1;
 
+    enum PipelineStatus { None, Active, Deactivated }
+
     // SC creates SGD NFT for the first time: CID, price, access condition, patient metadata, sequencing metadata, tokenURI
     struct RegisterInput {
         address initialOwner;
@@ -86,6 +88,14 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
     // Track original owners of RGD NFTs when they are deposited
     mapping(uint256 => address) public rgdOriginalOwners;
 
+    // keccak256(rgdTokenId, sequencingInfo/pipelineInfo) => PipelineStatus
+    mapping(bytes32 => PipelineStatus) private _pipelineRegistry;
+
+    function getPipelineStatus(uint256 rgdTokenId, string memory sequencingInfo) external view returns (PipelineStatus) {
+        bytes32 pipelineHash = keccak256(abi.encodePacked(rgdTokenId, sequencingInfo));
+        return _pipelineRegistry[pipelineHash];
+    }
+
     // Platform fee configuration
     uint256 public platformFeePercentage = 250; // 2.5% = 250 basis points (out of 10000)
     address public feeReceiver;
@@ -151,6 +161,11 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         _;
     }
 
+    modifier onlyRecordOwner(uint256 tokenId) {
+        if (msg.sender != sgdNft.ownerOf(tokenId)) revert Unauthorized();
+        _;
+    }
+
     function setRegistrar(address newRegistrar) external onlyOwner {
         if (newRegistrar == address(0)) revert ZeroAddress();
         registrar = newRegistrar;
@@ -175,9 +190,15 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         // Ensure the RGD NFT is deposited and trackable
         // require(rgdOriginalOwners[input.rgdTokenId] != address(0), "RGD NFT not deposited in registry");
 
+        // Intrinsic Fingerprint: rgdTokenId + sequencingInfo
+        bytes32 pipelineHash = keccak256(abi.encodePacked(input.rgdTokenId, input.sequencingInfo));
+
+        if (_pipelineRegistry[pipelineHash] != PipelineStatus.None) {
+            revert SGDAlreadyRegistered();
+        }
+
         tokenId = _nextTokenId;
         _nextTokenId++;
-        
 
         SGDRecord memory r = SGDRecord({
             tokenId: tokenId,
@@ -202,6 +223,8 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         });
 
         _records[tokenId] = r;
+
+        _pipelineRegistry[pipelineHash] = PipelineStatus.Active;
 
         if (bytes(input.tokenURI).length > 0) {
             sgdNft.mintWithURI(input.initialOwner, tokenId, input.tokenURI);
@@ -321,17 +344,23 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
 
     // TACo/SC validates buyer eligibility before releasing decryption key shares
     // SC/TACo check before release key.
-    function canReleaseKey(
+    function tacoCanDecrypt(
         uint256 tokenId, 
         address buyer
-    ) external view recordExists(tokenId) returns (bool) {
+    ) external view recordExists(tokenId) returns (uint8) {
         SGDRecord storage r = _records[tokenId];
+        bytes32 pipelineHash = keccak256(abi.encodePacked(r.rgdTokenId, r.sequencingInfo));
 
-        return (
+        if (
             r.active &&
+            _pipelineRegistry[pipelineHash] == PipelineStatus.Active &&
             latestTokenBySgdId[r.sgdId] == tokenId &&
             hasPurchased[tokenId][buyer]
-        );
+        ) {
+            return 1;
+        }
+
+        return 0;
     }
 
     // use when data owner wants to update access condition or price.
@@ -383,10 +412,78 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
     // Data Owner only request update
     // SC/Registrar can create new version or deactivate
     function deactivateSGD(
-        uint256 tokenId
-    ) external onlyRegistrar recordExists(tokenId) {
-        _records[tokenId].active = false;
+        uint256 tokenId,
+        address newWalletForActivation
+    ) external onlyRecordOwner(tokenId) recordExists(tokenId) {
+        if (newWalletForActivation == address(0)) revert ZeroAddress();
+        SGDRecord storage record = _records[tokenId];
+        if (!record.active) revert InactiveRecord();
+
+        // 1. Chuyển trạng thái sang Inactive
+        record.active = false;
+
+        bytes32 pipelineHash = keccak256(abi.encodePacked(record.rgdTokenId, record.sequencingInfo));
+        _pipelineRegistry[pipelineHash] = PipelineStatus.Deactivated;
+
+        // 2. XOAY VÒNG VÍ (Address Rotation): Chuyển NFT sang ví mới được chỉ định
+        address oldOwner = record.registeredOwner;
+        sgdNft.transferByMinter(oldOwner, newWalletForActivation, tokenId);
+        record.registeredOwner = newWalletForActivation;
+
         emit SGDDeactivated(tokenId);
+
+        // Emit thêm log để ghi nhận phiên bản và địa chỉ quản lý mới
+        emit SGDVersionUpdated(
+            tokenId,
+            record.sgdId,
+            record.accessCondition,
+            record.price,
+            record.version,
+            newWalletForActivation
+        );
+    }
+
+    // Dành riêng cho ví mới kích hoạt lại trạng thái bán dữ liệu
+    function activateSGD(
+        uint256 tokenId
+    ) external onlyRecordOwner(tokenId) recordExists(tokenId) {
+        SGDRecord storage record = _records[tokenId];
+        if (record.active) revert("Error: Record is already active");
+        if (latestTokenBySgdId[record.sgdId] != tokenId) revert NotLatestVersion();
+
+        // 1. Bật lại trạng thái hoạt động
+        record.active = true;
+
+        bytes32 pipelineHash = keccak256(abi.encodePacked(record.rgdTokenId, record.sequencingInfo));
+        _pipelineRegistry[pipelineHash] = PipelineStatus.Active;
+
+        // 2. Tăng số version để tạo tính liên tục lịch sử chính sách
+        record.version = record.version + 1;
+
+        emit SGDVersionUpdated(
+            tokenId,
+            record.sgdId,
+            record.accessCondition,
+            record.price,
+            record.version,
+            record.registeredOwner
+        );
+    }
+
+    // Dedicated view function for the frontend DApp to pre-check if an SGD is purchasable.
+    // It prevents users from trying to buy a deactivated asset or one that is not the latest version.
+    function isSGDPurchasable(string calldata sgdId) external view returns (bool) {
+        uint256 latestTokenId = latestTokenBySgdId[sgdId];
+        if (latestTokenId == 0) return false;
+
+        SGDRecord storage r = _records[latestTokenId];
+
+        bytes32 pipelineHash = keccak256(abi.encodePacked(r.rgdTokenId, r.sequencingInfo));
+
+        return (
+            r.active &&
+            _pipelineRegistry[pipelineHash] == PipelineStatus.Active
+        );
     }
 
     function nextTokenId() external view returns (uint256) {

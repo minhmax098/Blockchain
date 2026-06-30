@@ -78,6 +78,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.GDMRegistry__factory>;
     getContractFactory(
+      name: "IGDMRegistry",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.IGDMRegistry__factory>;
+    getContractFactory(
       name: "RGDNFT",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.RGDNFT__factory>;
@@ -167,6 +171,11 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.GDMRegistry>;
     getContractAt(
+      name: "IGDMRegistry",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.IGDMRegistry>;
+    getContractAt(
       name: "RGDNFT",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
@@ -242,6 +251,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.GDMRegistry>;
     deployContract(
+      name: "IGDMRegistry",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IGDMRegistry>;
+    deployContract(
       name: "RGDNFT",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.RGDNFT>;
@@ -330,6 +343,11 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.GDMRegistry>;
+    deployContract(
+      name: "IGDMRegistry",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IGDMRegistry>;
     deployContract(
       name: "RGDNFT",
       args: any[],

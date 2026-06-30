@@ -196,15 +196,17 @@ export declare namespace GDMRegistry {
 export interface GDMRegistryInterface extends Interface {
   getFunction(
     nameOrSignature:
-      | "canReleaseKey"
+      | "activateSGD"
       | "deactivateSGD"
       | "feeReceiver"
       | "getCID"
       | "getFullRecord"
+      | "getPipelineStatus"
       | "getPublicRecord"
       | "getVersionsOfSgd"
       | "hasPurchased"
       | "isLatestVersion"
+      | "isSGDPurchasable"
       | "latestTokenBySgdId"
       | "nextTokenId"
       | "onERC721Received"
@@ -236,12 +238,12 @@ export interface GDMRegistryInterface extends Interface {
   ): EventFragment;
 
   encodeFunctionData(
-    functionFragment: "canReleaseKey",
-    values: [BigNumberish, AddressLike]
+    functionFragment: "activateSGD",
+    values: [BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "deactivateSGD",
-    values: [BigNumberish]
+    values: [BigNumberish, AddressLike]
   ): string;
   encodeFunctionData(
     functionFragment: "feeReceiver",
@@ -254,6 +256,10 @@ export interface GDMRegistryInterface extends Interface {
   encodeFunctionData(
     functionFragment: "getFullRecord",
     values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getPipelineStatus",
+    values: [BigNumberish, string]
   ): string;
   encodeFunctionData(
     functionFragment: "getPublicRecord",
@@ -270,6 +276,10 @@ export interface GDMRegistryInterface extends Interface {
   encodeFunctionData(
     functionFragment: "isLatestVersion",
     values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "isSGDPurchasable",
+    values: [string]
   ): string;
   encodeFunctionData(
     functionFragment: "latestTokenBySgdId",
@@ -328,7 +338,7 @@ export interface GDMRegistryInterface extends Interface {
   ): string;
 
   decodeFunctionResult(
-    functionFragment: "canReleaseKey",
+    functionFragment: "activateSGD",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -345,6 +355,10 @@ export interface GDMRegistryInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "getPipelineStatus",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "getPublicRecord",
     data: BytesLike
   ): Result;
@@ -358,6 +372,10 @@ export interface GDMRegistryInterface extends Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "isLatestVersion",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "isSGDPurchasable",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -612,14 +630,14 @@ export interface GDMRegistry extends BaseContract {
     event?: TCEvent
   ): Promise<this>;
 
-  canReleaseKey: TypedContractMethod<
-    [tokenId: BigNumberish, buyer: AddressLike],
-    [boolean],
-    "view"
+  activateSGD: TypedContractMethod<
+    [tokenId: BigNumberish],
+    [void],
+    "nonpayable"
   >;
 
   deactivateSGD: TypedContractMethod<
-    [tokenId: BigNumberish],
+    [tokenId: BigNumberish, newWalletForActivation: AddressLike],
     [void],
     "nonpayable"
   >;
@@ -631,6 +649,12 @@ export interface GDMRegistry extends BaseContract {
   getFullRecord: TypedContractMethod<
     [tokenId: BigNumberish],
     [GDMRegistry.SGDRecordStructOutput],
+    "view"
+  >;
+
+  getPipelineStatus: TypedContractMethod<
+    [rgdTokenId: BigNumberish, sequencingInfo: string],
+    [bigint],
     "view"
   >;
 
@@ -657,6 +681,8 @@ export interface GDMRegistry extends BaseContract {
     [boolean],
     "view"
   >;
+
+  isSGDPurchasable: TypedContractMethod<[sgdId: string], [boolean], "view">;
 
   latestTokenBySgdId: TypedContractMethod<[arg0: string], [bigint], "view">;
 
@@ -714,7 +740,7 @@ export interface GDMRegistry extends BaseContract {
   sgdNft: TypedContractMethod<[], [string], "view">;
 
   tacoCanDecrypt: TypedContractMethod<
-    [tokenId: BigNumberish, user: AddressLike],
+    [tokenId: BigNumberish, buyer: AddressLike],
     [bigint],
     "view"
   >;
@@ -743,15 +769,15 @@ export interface GDMRegistry extends BaseContract {
   ): T;
 
   getFunction(
-    nameOrSignature: "canReleaseKey"
-  ): TypedContractMethod<
-    [tokenId: BigNumberish, buyer: AddressLike],
-    [boolean],
-    "view"
-  >;
+    nameOrSignature: "activateSGD"
+  ): TypedContractMethod<[tokenId: BigNumberish], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "deactivateSGD"
-  ): TypedContractMethod<[tokenId: BigNumberish], [void], "nonpayable">;
+  ): TypedContractMethod<
+    [tokenId: BigNumberish, newWalletForActivation: AddressLike],
+    [void],
+    "nonpayable"
+  >;
   getFunction(
     nameOrSignature: "feeReceiver"
   ): TypedContractMethod<[], [string], "view">;
@@ -763,6 +789,13 @@ export interface GDMRegistry extends BaseContract {
   ): TypedContractMethod<
     [tokenId: BigNumberish],
     [GDMRegistry.SGDRecordStructOutput],
+    "view"
+  >;
+  getFunction(
+    nameOrSignature: "getPipelineStatus"
+  ): TypedContractMethod<
+    [rgdTokenId: BigNumberish, sequencingInfo: string],
+    [bigint],
     "view"
   >;
   getFunction(
@@ -789,6 +822,9 @@ export interface GDMRegistry extends BaseContract {
   getFunction(
     nameOrSignature: "isLatestVersion"
   ): TypedContractMethod<[tokenId: BigNumberish], [boolean], "view">;
+  getFunction(
+    nameOrSignature: "isSGDPurchasable"
+  ): TypedContractMethod<[sgdId: string], [boolean], "view">;
   getFunction(
     nameOrSignature: "latestTokenBySgdId"
   ): TypedContractMethod<[arg0: string], [bigint], "view">;
@@ -848,7 +884,7 @@ export interface GDMRegistry extends BaseContract {
   getFunction(
     nameOrSignature: "tacoCanDecrypt"
   ): TypedContractMethod<
-    [tokenId: BigNumberish, user: AddressLike],
+    [tokenId: BigNumberish, buyer: AddressLike],
     [bigint],
     "view"
   >;

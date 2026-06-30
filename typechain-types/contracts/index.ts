@@ -3,5 +3,6 @@
 /* eslint-disable */
 import type * as gdmnftSol from "./GDMNFT.sol";
 export type { gdmnftSol };
-export type { RGDNFT } from "./RGDNFT";
+import type * as rgdnftSol from "./RGDNFT.sol";
+export type { rgdnftSol };
 export type { SGDNFT } from "./SGDNFT";
