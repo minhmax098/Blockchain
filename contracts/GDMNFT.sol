@@ -85,6 +85,13 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
     mapping (uint256 => SGDRecord[]) private _versionsOfSgd;
     mapping (string => uint256) public latestTokenBySgdId;
 
+    // FHE Limited Access: Track operations 
+    // mapping(tokenId => mapping(buyer => balance))
+    mapping(uint256 => mapping(address => uint256)) public operationsBalance;
+
+    // Authorizsed Oracles for updating operations balance
+    mapping(address => bool) public authorizedOracles;
+
     // Track original owners of RGD NFTs when they are deposited
     mapping(uint256 => address) public rgdOriginalOwners;
 
@@ -109,11 +116,26 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         string cid,
         uint256 price
     );
+
     event FullAccessPurchased(
         uint256 indexed tokenId,
         address indexed buyer,
         uint256 amount
     );
+
+    event LimitedAccessPurchased(
+        uint256 indexed tokenId,
+        address indexed buyer,
+        uint256 operationsNumber,
+        uint256 totalCost
+    );
+
+    event OperationsBalanceUpdated(
+        uint256 indexed tokenId,
+        address indexed buyer,
+        uint256 remainingOperations
+    );
+
     event SGDDeactivated(uint256 indexed tokenId);
 
     event SGDVersionUpdated(
@@ -142,6 +164,9 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
     error Unauthorized();
     error PaymentFailed();
 
+    error NotAuthorizedOracle();
+    error InsufficientOperationsBalance();
+
     constructor(address nftAddress, address initialOwner)
         Ownable(initialOwner)
     {
@@ -164,6 +189,16 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
     modifier onlyRecordOwner(uint256 tokenId) {
         if (msg.sender != sgdNft.ownerOf(tokenId)) revert Unauthorized();
         _;
+    }
+
+    modifier onlyOracle() {
+        if (!authorizedOracles[msg.sender] && msg.sender != owner()) revert NotAuthorizedOracle();
+        _;
+    }
+
+    function setOracle(address oracle, bool status) external onlyOwner {
+        if (oracle == address(0)) revert ZeroAddress();
+        authorizedOracles[oracle] = status;
     }
 
     function setRegistrar(address newRegistrar) external onlyOwner {
@@ -340,6 +375,76 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         if (!ok) revert PaymentFailed();
 
         emit FullAccessPurchased(tokenId, msg.sender, msg.value);
+    }
+
+    // Buyer requests limited access to perform Homomorphic Computation via FHE Compute Service 
+    // They pay per operation using the SGD price as the base price per operation
+    function requestLimitedAccess(
+        uint256 tokenId,
+        uint256 operationsNumber
+    ) external payable nonReentrant recordExists(tokenId) {
+        SGDRecord storage r = _records[tokenId];
+
+        // 1. NFT version must be active 
+        if (!r.active) revert InactiveRecord();
+
+        // 2. Buyer can only purchase the latest SGD NFT version
+        if (latestTokenBySgdId[r.sgdId] != tokenId) revert NotLatestVersion();
+
+        // 3. Buyer must pay the correct amount for the requested operations
+        uint256 totalCost = r.price * operationsNumber;
+        if (msg.value != totalCost) revert WrongPayment();
+
+        // 4. Update the buyer's operations balance, increment operations balance
+        operationsBalance[tokenId][msg.sender] += operationsNumber;
+
+        address seller = sgdNft.ownerOf(tokenId);
+
+        // Calculate platform fee and seller payout
+        uint256 platformFee = (msg.value * platformFeePercentage) / 10000;
+        uint256 sellerPayout = msg.value - platformFee;
+
+        // Pay the platform fee receiver
+        if (platformFee > 0) {
+            (bool feeOk, ) = payable(feeReceiver).call{value: platformFee}("");
+            if (!feeOk) revert PaymentFailed();
+        }
+
+        // Pay the seller
+        (bool ok, ) = payable(seller).call{value: sellerPayout}("");
+        if (!ok) revert PaymentFailed();
+
+        emit LimitedAccessPurchased(tokenId, msg.sender, operationsNumber, totalCost);
+    }
+
+    // Called by an authorized Oracle after the FHE Compute Service completes operations
+    function updateOperationsBalance(
+        uint256 tokenId,
+        address buyer,
+        uint256 operationsUsed
+    ) external onlyOracle recordExists(tokenId) {
+       if (operationsBalance[tokenId][buyer] < operationsUsed) {
+            revert InsufficientOperationsBalance();
+        }
+
+        operationsBalance[tokenId][buyer] -= operationsUsed;
+
+        emit OperationsBalanceUpdated(tokenId, buyer, operationsBalance[tokenId][buyer]);
+    }
+
+    // Allow Admin/Patient to revoke access by resetting operations balance
+    function revokeLimitedAccess(
+        uint256 tokenId,
+        address buyer
+    ) external onlyRecordOwner(tokenId) recordExists(tokenId) {
+        // Can be revoked by admin/registrar or the data owner
+        if (msg.sender != registrar && msg.sender != owner() && msg.sender != sgdNft.ownerOf(tokenId)) {
+            revert Unauthorized();
+        }
+
+        operationsBalance[tokenId][buyer] = 0;
+
+        emit OperationsBalanceUpdated(tokenId, buyer, 0);
     }
 
     // TACo/SC validates buyer eligibility before releasing decryption key shares
