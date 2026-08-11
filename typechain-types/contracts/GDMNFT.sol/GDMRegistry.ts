@@ -197,6 +197,7 @@ export interface GDMRegistryInterface extends Interface {
   getFunction(
     nameOrSignature:
       | "activateSGD"
+      | "authorizedOracles"
       | "deactivateSGD"
       | "feeReceiver"
       | "getCID"
@@ -210,18 +211,23 @@ export interface GDMRegistryInterface extends Interface {
       | "latestTokenBySgdId"
       | "nextTokenId"
       | "onERC721Received"
+      | "operationsBalance"
       | "owner"
       | "platformFeePercentage"
       | "purchaseFullAccess"
       | "registerSGD"
       | "registrar"
       | "renounceOwnership"
+      | "requestLimitedAccess"
+      | "revokeLimitedAccess"
       | "rgdOriginalOwners"
       | "setFeeConfiguration"
+      | "setOracle"
       | "setRegistrar"
       | "sgdNft"
       | "tacoCanDecrypt"
       | "transferOwnership"
+      | "updateOperationsBalance"
       | "updateSGDVersion"
   ): FunctionFragment;
 
@@ -229,6 +235,8 @@ export interface GDMRegistryInterface extends Interface {
     nameOrSignatureOrTopic:
       | "FullAccessPurchased"
       | "LatestVersionUpdated"
+      | "LimitedAccessPurchased"
+      | "OperationsBalanceUpdated"
       | "OwnershipTransferred"
       | "RGDReceived"
       | "RegistrarUpdated"
@@ -240,6 +248,10 @@ export interface GDMRegistryInterface extends Interface {
   encodeFunctionData(
     functionFragment: "activateSGD",
     values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "authorizedOracles",
+    values: [AddressLike]
   ): string;
   encodeFunctionData(
     functionFragment: "deactivateSGD",
@@ -293,6 +305,10 @@ export interface GDMRegistryInterface extends Interface {
     functionFragment: "onERC721Received",
     values: [AddressLike, AddressLike, BigNumberish, BytesLike]
   ): string;
+  encodeFunctionData(
+    functionFragment: "operationsBalance",
+    values: [BigNumberish, AddressLike]
+  ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "platformFeePercentage",
@@ -312,12 +328,24 @@ export interface GDMRegistryInterface extends Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
+    functionFragment: "requestLimitedAccess",
+    values: [BigNumberish, BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "revokeLimitedAccess",
+    values: [BigNumberish, AddressLike]
+  ): string;
+  encodeFunctionData(
     functionFragment: "rgdOriginalOwners",
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "setFeeConfiguration",
     values: [BigNumberish, AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setOracle",
+    values: [AddressLike, boolean]
   ): string;
   encodeFunctionData(
     functionFragment: "setRegistrar",
@@ -333,12 +361,20 @@ export interface GDMRegistryInterface extends Interface {
     values: [AddressLike]
   ): string;
   encodeFunctionData(
+    functionFragment: "updateOperationsBalance",
+    values: [BigNumberish, AddressLike, BigNumberish]
+  ): string;
+  encodeFunctionData(
     functionFragment: "updateSGDVersion",
     values: [BigNumberish, string, string, BigNumberish, string, AddressLike]
   ): string;
 
   decodeFunctionResult(
     functionFragment: "activateSGD",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "authorizedOracles",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -390,6 +426,10 @@ export interface GDMRegistryInterface extends Interface {
     functionFragment: "onERC721Received",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "operationsBalance",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "platformFeePercentage",
@@ -409,6 +449,14 @@ export interface GDMRegistryInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "requestLimitedAccess",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "revokeLimitedAccess",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "rgdOriginalOwners",
     data: BytesLike
   ): Result;
@@ -416,6 +464,7 @@ export interface GDMRegistryInterface extends Interface {
     functionFragment: "setFeeConfiguration",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "setOracle", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "setRegistrar",
     data: BytesLike
@@ -427,6 +476,10 @@ export interface GDMRegistryInterface extends Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "transferOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "updateOperationsBalance",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -459,6 +512,53 @@ export namespace LatestVersionUpdatedEvent {
   export interface OutputObject {
     sgdId: string;
     latestTokenId: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace LimitedAccessPurchasedEvent {
+  export type InputTuple = [
+    tokenId: BigNumberish,
+    buyer: AddressLike,
+    operationsNumber: BigNumberish,
+    totalCost: BigNumberish
+  ];
+  export type OutputTuple = [
+    tokenId: bigint,
+    buyer: string,
+    operationsNumber: bigint,
+    totalCost: bigint
+  ];
+  export interface OutputObject {
+    tokenId: bigint;
+    buyer: string;
+    operationsNumber: bigint;
+    totalCost: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace OperationsBalanceUpdatedEvent {
+  export type InputTuple = [
+    tokenId: BigNumberish,
+    buyer: AddressLike,
+    remainingOperations: BigNumberish
+  ];
+  export type OutputTuple = [
+    tokenId: bigint,
+    buyer: string,
+    remainingOperations: bigint
+  ];
+  export interface OutputObject {
+    tokenId: bigint;
+    buyer: string;
+    remainingOperations: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -636,6 +736,12 @@ export interface GDMRegistry extends BaseContract {
     "nonpayable"
   >;
 
+  authorizedOracles: TypedContractMethod<
+    [arg0: AddressLike],
+    [boolean],
+    "view"
+  >;
+
   deactivateSGD: TypedContractMethod<
     [tokenId: BigNumberish, newWalletForActivation: AddressLike],
     [void],
@@ -699,6 +805,12 @@ export interface GDMRegistry extends BaseContract {
     "nonpayable"
   >;
 
+  operationsBalance: TypedContractMethod<
+    [arg0: BigNumberish, arg1: AddressLike],
+    [bigint],
+    "view"
+  >;
+
   owner: TypedContractMethod<[], [string], "view">;
 
   platformFeePercentage: TypedContractMethod<[], [bigint], "view">;
@@ -719,6 +831,18 @@ export interface GDMRegistry extends BaseContract {
 
   renounceOwnership: TypedContractMethod<[], [void], "nonpayable">;
 
+  requestLimitedAccess: TypedContractMethod<
+    [tokenId: BigNumberish, operationsNumber: BigNumberish],
+    [void],
+    "payable"
+  >;
+
+  revokeLimitedAccess: TypedContractMethod<
+    [tokenId: BigNumberish, buyer: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
   rgdOriginalOwners: TypedContractMethod<
     [arg0: BigNumberish],
     [string],
@@ -727,6 +851,12 @@ export interface GDMRegistry extends BaseContract {
 
   setFeeConfiguration: TypedContractMethod<
     [newFeePercentage: BigNumberish, newFeeReceiver: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
+  setOracle: TypedContractMethod<
+    [oracle: AddressLike, status: boolean],
     [void],
     "nonpayable"
   >;
@@ -751,6 +881,12 @@ export interface GDMRegistry extends BaseContract {
     "nonpayable"
   >;
 
+  updateOperationsBalance: TypedContractMethod<
+    [tokenId: BigNumberish, buyer: AddressLike, operationsUsed: BigNumberish],
+    [void],
+    "nonpayable"
+  >;
+
   updateSGDVersion: TypedContractMethod<
     [
       tokenId: BigNumberish,
@@ -771,6 +907,9 @@ export interface GDMRegistry extends BaseContract {
   getFunction(
     nameOrSignature: "activateSGD"
   ): TypedContractMethod<[tokenId: BigNumberish], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "authorizedOracles"
+  ): TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
   getFunction(
     nameOrSignature: "deactivateSGD"
   ): TypedContractMethod<
@@ -844,6 +983,13 @@ export interface GDMRegistry extends BaseContract {
     "nonpayable"
   >;
   getFunction(
+    nameOrSignature: "operationsBalance"
+  ): TypedContractMethod<
+    [arg0: BigNumberish, arg1: AddressLike],
+    [bigint],
+    "view"
+  >;
+  getFunction(
     nameOrSignature: "owner"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
@@ -866,12 +1012,33 @@ export interface GDMRegistry extends BaseContract {
     nameOrSignature: "renounceOwnership"
   ): TypedContractMethod<[], [void], "nonpayable">;
   getFunction(
+    nameOrSignature: "requestLimitedAccess"
+  ): TypedContractMethod<
+    [tokenId: BigNumberish, operationsNumber: BigNumberish],
+    [void],
+    "payable"
+  >;
+  getFunction(
+    nameOrSignature: "revokeLimitedAccess"
+  ): TypedContractMethod<
+    [tokenId: BigNumberish, buyer: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
     nameOrSignature: "rgdOriginalOwners"
   ): TypedContractMethod<[arg0: BigNumberish], [string], "view">;
   getFunction(
     nameOrSignature: "setFeeConfiguration"
   ): TypedContractMethod<
     [newFeePercentage: BigNumberish, newFeeReceiver: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
+    nameOrSignature: "setOracle"
+  ): TypedContractMethod<
+    [oracle: AddressLike, status: boolean],
     [void],
     "nonpayable"
   >;
@@ -891,6 +1058,13 @@ export interface GDMRegistry extends BaseContract {
   getFunction(
     nameOrSignature: "transferOwnership"
   ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "updateOperationsBalance"
+  ): TypedContractMethod<
+    [tokenId: BigNumberish, buyer: AddressLike, operationsUsed: BigNumberish],
+    [void],
+    "nonpayable"
+  >;
   getFunction(
     nameOrSignature: "updateSGDVersion"
   ): TypedContractMethod<
@@ -919,6 +1093,20 @@ export interface GDMRegistry extends BaseContract {
     LatestVersionUpdatedEvent.InputTuple,
     LatestVersionUpdatedEvent.OutputTuple,
     LatestVersionUpdatedEvent.OutputObject
+  >;
+  getEvent(
+    key: "LimitedAccessPurchased"
+  ): TypedContractEvent<
+    LimitedAccessPurchasedEvent.InputTuple,
+    LimitedAccessPurchasedEvent.OutputTuple,
+    LimitedAccessPurchasedEvent.OutputObject
+  >;
+  getEvent(
+    key: "OperationsBalanceUpdated"
+  ): TypedContractEvent<
+    OperationsBalanceUpdatedEvent.InputTuple,
+    OperationsBalanceUpdatedEvent.OutputTuple,
+    OperationsBalanceUpdatedEvent.OutputObject
   >;
   getEvent(
     key: "OwnershipTransferred"
@@ -984,6 +1172,28 @@ export interface GDMRegistry extends BaseContract {
       LatestVersionUpdatedEvent.InputTuple,
       LatestVersionUpdatedEvent.OutputTuple,
       LatestVersionUpdatedEvent.OutputObject
+    >;
+
+    "LimitedAccessPurchased(uint256,address,uint256,uint256)": TypedContractEvent<
+      LimitedAccessPurchasedEvent.InputTuple,
+      LimitedAccessPurchasedEvent.OutputTuple,
+      LimitedAccessPurchasedEvent.OutputObject
+    >;
+    LimitedAccessPurchased: TypedContractEvent<
+      LimitedAccessPurchasedEvent.InputTuple,
+      LimitedAccessPurchasedEvent.OutputTuple,
+      LimitedAccessPurchasedEvent.OutputObject
+    >;
+
+    "OperationsBalanceUpdated(uint256,address,uint256)": TypedContractEvent<
+      OperationsBalanceUpdatedEvent.InputTuple,
+      OperationsBalanceUpdatedEvent.OutputTuple,
+      OperationsBalanceUpdatedEvent.OutputObject
+    >;
+    OperationsBalanceUpdated: TypedContractEvent<
+      OperationsBalanceUpdatedEvent.InputTuple,
+      OperationsBalanceUpdatedEvent.OutputTuple,
+      OperationsBalanceUpdatedEvent.OutputObject
     >;
 
     "OwnershipTransferred(address,address)": TypedContractEvent<
