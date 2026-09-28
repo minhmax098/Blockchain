@@ -33,6 +33,10 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         string signatureRef;
         string encHash;
         string tokenURI;
+
+        // Additional fields can be added here as needed
+        uint256 chunkIndex;  // gene index (1, 2, 3, ...)
+        string diseaseTag; // disease tag (Blood_Cancer, Kidney_Cancer,...)
     }
 
     // on-chain metadata record
@@ -57,6 +61,10 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         uint256 createdAt;
         bool active;
         uint256 version;
+
+        // Additional fields can be added here as needed
+        uint256 chunkIndex;  // gene index (1, 2, 3, ...)
+        string diseaseTag; // disease tag (Blood_Cancer, Kidney_Cancer,...)
     }
 
     struct PublicRecord {
@@ -97,6 +105,9 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
 
     // keccak256(rgdTokenId, sequencingInfo/pipelineInfo) => PipelineStatus
     mapping(bytes32 => PipelineStatus) private _pipelineRegistry;
+
+    // Mapping frpm diseaseTag (Blood_Cancer) => list of tokenId of Sub-NFTs
+    mapping(string => uint256[]) public tokensByDiseaseTag;
 
     function getPipelineStatus(uint256 rgdTokenId, string memory sequencingInfo) external view returns (PipelineStatus) {
         bytes32 pipelineHash = keccak256(abi.encodePacked(rgdTokenId, sequencingInfo));
@@ -214,19 +225,77 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         feeReceiver = newFeeReceiver;
     }
 
-    // SC creates the first SGD NFT version and stores its access condition, price, CID, and owner information.
-    function registerSGD(
-        RegisterInput calldata input
-    ) external onlyRegistrar returns (uint256 tokenId) {
-        if (latestTokenBySgdId[input.sgdId] != 0) revert SGDAlreadyRegistered();
+    // // SC creates the first SGD NFT version and stores its access condition, price, CID, and owner information.
+    // function registerSGD(
+    //     RegisterInput calldata input
+    // ) external onlyRegistrar returns (uint256 tokenId) {
+    //     if (latestTokenBySgdId[input.sgdId] != 0) revert SGDAlreadyRegistered();
 
+    //     if (input.initialOwner == address(0)) revert ZeroAddress();
+
+    //     // Ensure the RGD NFT is deposited and trackable
+    //     // require(rgdOriginalOwners[input.rgdTokenId] != address(0), "RGD NFT not deposited in registry");
+
+    //     // Intrinsic Fingerprint: rgdTokenId + sequencingInfo
+    //     bytes32 pipelineHash = keccak256(abi.encodePacked(input.rgdTokenId, input.sequencingInfo));
+
+    //     if (_pipelineRegistry[pipelineHash] != PipelineStatus.None) {
+    //         revert SGDAlreadyRegistered();
+    //     }
+
+    //     tokenId = _nextTokenId;
+    //     _nextTokenId++;
+
+    //     SGDRecord memory r = SGDRecord({
+    //         tokenId: tokenId,
+    //         sgdId: input.sgdId,
+    //         rgdTokenId: input.rgdTokenId,
+    //         cid: input.cid,
+    //         registeredOwner: input.initialOwner,
+    //         accessCondition: input.accessCondition,
+    //         price: input.price,
+    //         collectionDate: input.collectionDate,
+    //         sampleType: input.sampleType,
+    //         patientRef: input.patientRef,
+    //         consentCode: input.consentCode,
+    //         sampleHash: input.sampleHash,
+    //         encryptionScheme: input.encryptionScheme,
+    //         sequencingInfo: input.sequencingInfo,
+    //         signatureRef: input.signatureRef,
+    //         encHash: input.encHash,
+    //         createdAt: block.timestamp,
+    //         active: true,
+    //         version: 0
+    //     });
+
+    //     _records[tokenId] = r;
+
+    //     _pipelineRegistry[pipelineHash] = PipelineStatus.Active;
+
+    //     if (bytes(input.tokenURI).length > 0) {
+    //         sgdNft.mintWithURI(input.initialOwner, tokenId, input.tokenURI);
+    //     } else {
+    //         sgdNft.mint(input.initialOwner, tokenId);
+    //     }
+
+    //     latestTokenBySgdId[input.sgdId] = tokenId;
+
+    //     emit LatestVersionUpdated(input.sgdId, tokenId);
+
+    //     emit SGDRegistered(
+    //         tokenId,
+    //         input.initialOwner,
+    //         input.sgdId,
+    //         input.cid,
+    //         input.price
+    //     );
+    // }
+    // Register Sub-SGD NFT chunk with disease tagging and FHE parameters
+    function registerSGD(RegisterInput calldata input) external onlyRegistrar returns (uint256 tokenId) {
+        if (latestTokenBySgdId[input.sgdId] != 0) revert SGDAlreadyRegistered();
         if (input.initialOwner == address(0)) revert ZeroAddress();
 
-        // Ensure the RGD NFT is deposited and trackable
-        // require(rgdOriginalOwners[input.rgdTokenId] != address(0), "RGD NFT not deposited in registry");
-
-        // Intrinsic Fingerprint: rgdTokenId + sequencingInfo
-        bytes32 pipelineHash = keccak256(abi.encodePacked(input.rgdTokenId, input.sequencingInfo));
+        bytes32 pipelineHash = keccak256(abi.encodePacked(input.rgdTokenId, input.sequencingInfo, input.chunkIndex));
 
         if (_pipelineRegistry[pipelineHash] != PipelineStatus.None) {
             revert SGDAlreadyRegistered();
@@ -239,7 +308,10 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
             tokenId: tokenId,
             sgdId: input.sgdId,
             rgdTokenId: input.rgdTokenId,
+            chunkIndex: input.chunkIndex,
+            diseaseTag: input.diseaseTag,
             cid: input.cid,
+            fheEvaluationKeyCID: input.fheEvaluationKeyCID,
             registeredOwner: input.initialOwner,
             accessCondition: input.accessCondition,
             price: input.price,
@@ -258,8 +330,8 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         });
 
         _records[tokenId] = r;
-
         _pipelineRegistry[pipelineHash] = PipelineStatus.Active;
+        _tokensByDiseaseTag[input.diseaseTag].push(tokenId);
 
         if (bytes(input.tokenURI).length > 0) {
             sgdNft.mintWithURI(input.initialOwner, tokenId, input.tokenURI);
@@ -270,11 +342,12 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         latestTokenBySgdId[input.sgdId] = tokenId;
 
         emit LatestVersionUpdated(input.sgdId, tokenId);
-
         emit SGDRegistered(
             tokenId,
             input.initialOwner,
             input.sgdId,
+            input.diseaseTag,
+            input.chunkIndex,
             input.cid,
             input.price
         );
@@ -318,7 +391,8 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
             msg.sender != currentOwner &&
             msg.sender != registrar &&
             msg.sender != owner() &&
-            !hasPurchased[tokenId][msg.sender]
+            !hasPurchased[tokenId][msg.sender] &&
+            operationsBalance[tokenId][msg.sender] == 0 // Only allow access if the caller is the owner, registrar, contract owner, or has purchased full access or has remaining operations
         ) {
             revert Unauthorized();
         }
