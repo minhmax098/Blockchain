@@ -15,12 +15,13 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
 
     enum PipelineStatus { None, Active, Deactivated }
 
-    // SC creates SGD NFT for the first time: CID, price, access condition, patient metadata, sequencing metadata, tokenURI
+    // Struct RegisterInput: Receive Sub-SGD gene segment registration data.
     struct RegisterInput {
         address initialOwner;
         string sgdId;
         uint256 rgdTokenId;
         string cid;
+        string fheEvaluationKeyCID; // FHE evaluation key
         string accessCondition;
         uint256 price;
         uint256 collectionDate;
@@ -33,19 +34,18 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         string signatureRef;
         string encHash;
         string tokenURI;
-
-        // Additional fields can be added here as needed
-        uint256 chunkIndex;  // gene index (1, 2, 3, ...)
-        string diseaseTag; // disease tag (Blood_Cancer, Kidney_Cancer,...)
+        uint256 chunkIndex;  // Indexer gen (1, 2, 3...)
+        string diseaseTag;   // Pathological label (Blood_Cancer, Kidney_Cancer...)
     }
 
-    // on-chain metadata record
-    // save: SGD identity, CID, access condition, price, owner, sequencing metadata, version numberactive/latest state
-    struct SGDRecord {
+    // Struct SGDRecord: Save info on Blockchain
+    struct SGDRecord 
+    {
         uint256 tokenId;
         string sgdId;
         uint256 rgdTokenId;
         string cid;
+        string fheEvaluationKeyCID; // FHE evaluation key
         address registeredOwner;
         string accessCondition;
         uint256 price;
@@ -61,10 +61,8 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         uint256 createdAt;
         bool active;
         uint256 version;
-
-        // Additional fields can be added here as needed
-        uint256 chunkIndex;  // gene index (1, 2, 3, ...)
-        string diseaseTag; // disease tag (Blood_Cancer, Kidney_Cancer,...)
+        uint256 chunkIndex;         // 21
+        string diseaseTag;          // 22
     }
 
     struct PublicRecord {
@@ -82,40 +80,33 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         string encryptionScheme;
         string sequencingInfo;
         bool active;
+        uint256 chunkIndex;
+        string diseaseTag;
     }
 
     mapping(uint256 => SGDRecord) private _records;
     mapping(uint256 => mapping(address => bool)) public hasPurchased;
 
-    // _versionsOfSgd[tokenId] = [record_v0, record_v1, ...];
-    // latestTokenBySgdId["SGD001"] = 1;
-    // Means: The array stores the entire version history. The variable `latest` stores the currently active token.
-    mapping (uint256 => SGDRecord[]) private _versionsOfSgd;
-    mapping (string => uint256) public latestTokenBySgdId;
+    mapping(uint256 => SGDRecord[]) private _versionsOfSgd;
+    mapping(string => uint256) public latestTokenBySgdId;
 
-    // FHE Limited Access: Track operations 
-    // mapping(tokenId => mapping(buyer => balance))
+    // FHE Limited Access: Balance số lượng phép toán
     mapping(uint256 => mapping(address => uint256)) public operationsBalance;
 
-    // Authorizsed Oracles for updating operations balance
+    // Authorized Oracles
     mapping(address => bool) public authorizedOracles;
 
-    // Track original owners of RGD NFTs when they are deposited
+    // Track original owners of RGD NFTs
     mapping(uint256 => address) public rgdOriginalOwners;
 
-    // keccak256(rgdTokenId, sequencingInfo/pipelineInfo) => PipelineStatus
+    // Pipeline registry status
     mapping(bytes32 => PipelineStatus) private _pipelineRegistry;
 
-    // Mapping frpm diseaseTag (Blood_Cancer) => list of tokenId of Sub-NFTs
+    // token by disease tag mapping
     mapping(string => uint256[]) public tokensByDiseaseTag;
 
-    function getPipelineStatus(uint256 rgdTokenId, string memory sequencingInfo) external view returns (PipelineStatus) {
-        bytes32 pipelineHash = keccak256(abi.encodePacked(rgdTokenId, sequencingInfo));
-        return _pipelineRegistry[pipelineHash];
-    }
-
     // Platform fee configuration
-    uint256 public platformFeePercentage = 250; // 2.5% = 250 basis points (out of 10000)
+    uint256 public platformFeePercentage = 250; // 2.5% = 250 basis points
     address public feeReceiver;
 
     event RegistrarUpdated(address indexed newRegistrar);
@@ -124,6 +115,8 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         uint256 indexed tokenId,
         address indexed initialOwner,
         string sgdId,
+        string diseaseTag,
+        uint256 chunkIndex,
         string cid,
         uint256 price
     );
@@ -165,7 +158,6 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
 
     error NotLatestVersion();
     error SGDAlreadyRegistered();
-
     error NotRegistrar();
     error ZeroAddress();
     error RecordNotFound();
@@ -174,17 +166,14 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
     error WrongPayment();
     error Unauthorized();
     error PaymentFailed();
-
     error NotAuthorizedOracle();
     error InsufficientOperationsBalance();
 
-    constructor(address nftAddress, address initialOwner)
-        Ownable(initialOwner)
-    {
+    constructor(address nftAddress, address initialOwner) Ownable(initialOwner) {
         if (nftAddress == address(0)) revert ZeroAddress();
         sgdNft = SGDNFT(nftAddress);
         registrar = initialOwner;
-        feeReceiver = initialOwner; // Default fee receiver is the owner
+        feeReceiver = initialOwner;
     }
 
     modifier onlyRegistrar() {
@@ -225,72 +214,12 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         feeReceiver = newFeeReceiver;
     }
 
-    // // SC creates the first SGD NFT version and stores its access condition, price, CID, and owner information.
-    // function registerSGD(
-    //     RegisterInput calldata input
-    // ) external onlyRegistrar returns (uint256 tokenId) {
-    //     if (latestTokenBySgdId[input.sgdId] != 0) revert SGDAlreadyRegistered();
+    function getPipelineStatus(uint256 rgdTokenId, string memory sequencingInfo) external view returns (PipelineStatus) {
+        bytes32 pipelineHash = keccak256(abi.encodePacked(rgdTokenId, sequencingInfo));
+        return _pipelineRegistry[pipelineHash];
+    }
 
-    //     if (input.initialOwner == address(0)) revert ZeroAddress();
-
-    //     // Ensure the RGD NFT is deposited and trackable
-    //     // require(rgdOriginalOwners[input.rgdTokenId] != address(0), "RGD NFT not deposited in registry");
-
-    //     // Intrinsic Fingerprint: rgdTokenId + sequencingInfo
-    //     bytes32 pipelineHash = keccak256(abi.encodePacked(input.rgdTokenId, input.sequencingInfo));
-
-    //     if (_pipelineRegistry[pipelineHash] != PipelineStatus.None) {
-    //         revert SGDAlreadyRegistered();
-    //     }
-
-    //     tokenId = _nextTokenId;
-    //     _nextTokenId++;
-
-    //     SGDRecord memory r = SGDRecord({
-    //         tokenId: tokenId,
-    //         sgdId: input.sgdId,
-    //         rgdTokenId: input.rgdTokenId,
-    //         cid: input.cid,
-    //         registeredOwner: input.initialOwner,
-    //         accessCondition: input.accessCondition,
-    //         price: input.price,
-    //         collectionDate: input.collectionDate,
-    //         sampleType: input.sampleType,
-    //         patientRef: input.patientRef,
-    //         consentCode: input.consentCode,
-    //         sampleHash: input.sampleHash,
-    //         encryptionScheme: input.encryptionScheme,
-    //         sequencingInfo: input.sequencingInfo,
-    //         signatureRef: input.signatureRef,
-    //         encHash: input.encHash,
-    //         createdAt: block.timestamp,
-    //         active: true,
-    //         version: 0
-    //     });
-
-    //     _records[tokenId] = r;
-
-    //     _pipelineRegistry[pipelineHash] = PipelineStatus.Active;
-
-    //     if (bytes(input.tokenURI).length > 0) {
-    //         sgdNft.mintWithURI(input.initialOwner, tokenId, input.tokenURI);
-    //     } else {
-    //         sgdNft.mint(input.initialOwner, tokenId);
-    //     }
-
-    //     latestTokenBySgdId[input.sgdId] = tokenId;
-
-    //     emit LatestVersionUpdated(input.sgdId, tokenId);
-
-    //     emit SGDRegistered(
-    //         tokenId,
-    //         input.initialOwner,
-    //         input.sgdId,
-    //         input.cid,
-    //         input.price
-    //     );
-    // }
-    // Register Sub-SGD NFT chunk with disease tagging and FHE parameters
+    // Đăng ký Sub-SGD NFT chunk
     function registerSGD(RegisterInput calldata input) external onlyRegistrar returns (uint256 tokenId) {
         if (latestTokenBySgdId[input.sgdId] != 0) revert SGDAlreadyRegistered();
         if (input.initialOwner == address(0)) revert ZeroAddress();
@@ -308,8 +237,6 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
             tokenId: tokenId,
             sgdId: input.sgdId,
             rgdTokenId: input.rgdTokenId,
-            chunkIndex: input.chunkIndex,
-            diseaseTag: input.diseaseTag,
             cid: input.cid,
             fheEvaluationKeyCID: input.fheEvaluationKeyCID,
             registeredOwner: input.initialOwner,
@@ -326,12 +253,16 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
             encHash: input.encHash,
             createdAt: block.timestamp,
             active: true,
-            version: 0
+            version: 0,
+            chunkIndex: input.chunkIndex,
+            diseaseTag: input.diseaseTag
         });
 
         _records[tokenId] = r;
         _pipelineRegistry[pipelineHash] = PipelineStatus.Active;
-        _tokensByDiseaseTag[input.diseaseTag].push(tokenId);
+
+        // call tokensByDiseaseTag mapping to store tokenId by diseaseTag
+        tokensByDiseaseTag[input.diseaseTag].push(tokenId);
 
         if (bytes(input.tokenURI).length > 0) {
             sgdNft.mintWithURI(input.initialOwner, tokenId, input.tokenURI);
@@ -353,9 +284,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         );
     }
 
-    function getPublicRecord(
-        uint256 tokenId
-    ) external view recordExists(tokenId) returns (PublicRecord memory) {
+    function getPublicRecord(uint256 tokenId) external view recordExists(tokenId) returns (PublicRecord memory) {
         SGDRecord storage r = _records[tokenId];
 
         return PublicRecord({
@@ -372,19 +301,17 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
             sampleHash: r.sampleHash,
             encryptionScheme: r.encryptionScheme,
             sequencingInfo: r.sequencingInfo,
-            active: r.active
+            active: r.active,
+            chunkIndex: r.chunkIndex,
+            diseaseTag: r.diseaseTag
         });
     }
 
-    function getFullRecord(
-        uint256 tokenId
-    ) external view recordExists(tokenId) returns (SGDRecord memory) {
+    function getFullRecord(uint256 tokenId) external view recordExists(tokenId) returns (SGDRecord memory) {
         return _records[tokenId];
     }
 
-    function getCID(
-        uint256 tokenId
-    ) external view recordExists(tokenId) returns (string memory) {
+    function getCID(uint256 tokenId) external view recordExists(tokenId) returns (string memory) {
         address currentOwner = sgdNft.ownerOf(tokenId);
 
         if (
@@ -392,7 +319,7 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
             msg.sender != registrar &&
             msg.sender != owner() &&
             !hasPurchased[tokenId][msg.sender] &&
-            operationsBalance[tokenId][msg.sender] == 0 // Only allow access if the caller is the owner, registrar, contract owner, or has purchased full access or has remaining operations
+            operationsBalance[tokenId][msg.sender] == 0
         ) {
             revert Unauthorized();
         }
@@ -400,98 +327,62 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         return _records[tokenId].cid;
     }
 
-    // Allow the Registry (minter) to transfer NFTs on behalf of the owner when updating to a new version.
-    //function transferByMinter(
-    //    address from,
-    //    address to,
-    //    uint256 tokenId
-    //) external onlyMinter {
-    //    if (_ownerOf(tokenId) == address(0)) revert TokenNotMinted();
-    //    if (to == address(0)) revert ZeroAddress();
-    //    _transfer(from, to, tokenId);
-    //}
-
-    // Buyer purchases access to the latest active SGD NFT version, 
-    // Buyers can only purchase the latest active version.
-    function purchaseFullAccess(
-        uint256 tokenId
-    ) external payable nonReentrant recordExists(tokenId) {
+    function purchaseFullAccess(uint256 tokenId) external payable nonReentrant recordExists(tokenId) {
         SGDRecord storage r = _records[tokenId];
 
-        // 1. NFT version must be active 
         if (!r.active) revert InactiveRecord();
-
-        // 2. Buyer can only purchase the latest SGD NFT version
         if (latestTokenBySgdId[r.sgdId] != tokenId) revert NotLatestVersion();
-
-        // 3. Prevent repeated purchase by the same buyer
         if (hasPurchased[tokenId][msg.sender]) revert AlreadyPurchased();
-        
-        // 4. Buyer must pay the latest price
         if (msg.value != r.price) revert WrongPayment();
 
         hasPurchased[tokenId][msg.sender] = true;
 
         address seller = sgdNft.ownerOf(tokenId);
 
-        // Calculate platform fee and seller payout
         uint256 platformFee = (msg.value * platformFeePercentage) / 10000;
         uint256 sellerPayout = msg.value - platformFee;
 
-        // Pay the platform fee receiver
         if (platformFee > 0) {
             (bool feeOk, ) = payable(feeReceiver).call{value: platformFee}("");
             if (!feeOk) revert PaymentFailed();
         }
 
-        // Pay the seller
         (bool ok, ) = payable(seller).call{value: sellerPayout}("");
         if (!ok) revert PaymentFailed();
 
         emit FullAccessPurchased(tokenId, msg.sender, msg.value);
     }
 
-    // Buyer requests limited access to perform Homomorphic Computation via FHE Compute Service 
-    // They pay per operation using the SGD price as the base price per operation
     function requestLimitedAccess(
         uint256 tokenId,
         uint256 operationsNumber
     ) external payable nonReentrant recordExists(tokenId) {
         SGDRecord storage r = _records[tokenId];
 
-        // 1. NFT version must be active 
         if (!r.active) revert InactiveRecord();
-
-        // 2. Buyer can only purchase the latest SGD NFT version
         if (latestTokenBySgdId[r.sgdId] != tokenId) revert NotLatestVersion();
 
-        // 3. Buyer must pay the correct amount for the requested operations
         uint256 totalCost = r.price * operationsNumber;
         if (msg.value != totalCost) revert WrongPayment();
 
-        // 4. Update the buyer's operations balance, increment operations balance
         operationsBalance[tokenId][msg.sender] += operationsNumber;
 
         address seller = sgdNft.ownerOf(tokenId);
 
-        // Calculate platform fee and seller payout
         uint256 platformFee = (msg.value * platformFeePercentage) / 10000;
         uint256 sellerPayout = msg.value - platformFee;
 
-        // Pay the platform fee receiver
         if (platformFee > 0) {
             (bool feeOk, ) = payable(feeReceiver).call{value: platformFee}("");
             if (!feeOk) revert PaymentFailed();
         }
 
-        // Pay the seller
         (bool ok, ) = payable(seller).call{value: sellerPayout}("");
         if (!ok) revert PaymentFailed();
 
         emit LimitedAccessPurchased(tokenId, msg.sender, operationsNumber, totalCost);
     }
 
-    // Called by an authorized Oracle after the FHE Compute Service completes operations
     function updateOperationsBalance(
         uint256 tokenId,
         address buyer,
@@ -502,33 +393,21 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         }
 
         operationsBalance[tokenId][buyer] -= operationsUsed;
-
         emit OperationsBalanceUpdated(tokenId, buyer, operationsBalance[tokenId][buyer]);
     }
 
-    // Allow Admin/Patient to revoke access by resetting operations balance
-    function revokeLimitedAccess(
-        uint256 tokenId,
-        address buyer
-    ) external onlyRecordOwner(tokenId) recordExists(tokenId) {
-        // Can be revoked by admin/registrar or the data owner
+    function revokeLimitedAccess(uint256 tokenId, address buyer) external recordExists(tokenId) {
         if (msg.sender != registrar && msg.sender != owner() && msg.sender != sgdNft.ownerOf(tokenId)) {
             revert Unauthorized();
         }
 
         operationsBalance[tokenId][buyer] = 0;
-
         emit OperationsBalanceUpdated(tokenId, buyer, 0);
     }
 
-    // TACo/SC validates buyer eligibility before releasing decryption key shares
-    // SC/TACo check before release key.
-    function tacoCanDecrypt(
-        uint256 tokenId, 
-        address buyer
-    ) external view recordExists(tokenId) returns (uint8) {
+    function tacoCanDecrypt(uint256 tokenId, address buyer) external view recordExists(tokenId) returns (uint8) {
         SGDRecord storage r = _records[tokenId];
-        bytes32 pipelineHash = keccak256(abi.encodePacked(r.rgdTokenId, r.sequencingInfo));
+        bytes32 pipelineHash = keccak256(abi.encodePacked(r.rgdTokenId, r.sequencingInfo, r.chunkIndex));
 
         if (
             r.active &&
@@ -542,33 +421,26 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         return 0;
     }
 
-    // use when data owner wants to update access condition or price.
-    // Blockchain immutable, but system supports logical mutability through NFT versioning
-    // When: access conditions change, price changes, CID changes
-    // THEN: update the old NFT, push old data to version array
     function updateSGDVersion(
         uint256 tokenId,
         string calldata newCid, 
         string calldata newAccessCondition,
         uint256 newPrice,
         string calldata newTokenURI,
-        address newOwner    // 1. Add new wallet parameters
+        address newOwner
     ) external onlyRegistrar recordExists(tokenId) {
         SGDRecord storage record = _records[tokenId];
 
         if (!record.active) revert InactiveRecord();
         if (latestTokenBySgdId[record.sgdId] != tokenId) revert NotLatestVersion();
 
-        // Push old data to version history before updating
         _versionsOfSgd[tokenId].push(record);
 
-        // Update the current record with new information
         record.cid = newCid;
         record.accessCondition = newAccessCondition;
         record.price = newPrice;
         record.version = record.version + 1;
 
-        // 2. Logic for transferring NFTs to a new wallet.
         if (newOwner != address(0) && newOwner != record.registeredOwner) {
             sgdNft.transferByMinter(record.registeredOwner, newOwner, tokenId);
             record.registeredOwner = newOwner;
@@ -584,34 +456,26 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
             newAccessCondition, 
             newPrice,
             record.version,
-            record.registeredOwner    // 3. Add new owner log
+            record.registeredOwner
         );
     }
 
-    // Data Owner only request update
-    // SC/Registrar can create new version or deactivate
-    function deactivateSGD(
-        uint256 tokenId,
-        address newWalletForActivation
-    ) external onlyRecordOwner(tokenId) recordExists(tokenId) {
+    function deactivateSGD(uint256 tokenId, address newWalletForActivation) external onlyRecordOwner(tokenId) recordExists(tokenId) {
         if (newWalletForActivation == address(0)) revert ZeroAddress();
         SGDRecord storage record = _records[tokenId];
         if (!record.active) revert InactiveRecord();
 
-        // 1. Switch to Inactive state
         record.active = false;
 
-        bytes32 pipelineHash = keccak256(abi.encodePacked(record.rgdTokenId, record.sequencingInfo));
+        bytes32 pipelineHash = keccak256(abi.encodePacked(record.rgdTokenId, record.sequencingInfo, record.chunkIndex));
         _pipelineRegistry[pipelineHash] = PipelineStatus.Deactivated;
 
-        // 2. Address Rotation: Transfer NFTs to the designated new wallet
         address oldOwner = record.registeredOwner;
         sgdNft.transferByMinter(oldOwner, newWalletForActivation, tokenId);
         record.registeredOwner = newWalletForActivation;
 
         emit SGDDeactivated(tokenId);
 
-        // Emit adds logs to record the new version and administrator address
         emit SGDVersionUpdated(
             tokenId,
             record.sgdId,
@@ -622,21 +486,16 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         );
     }
 
-    // Dedicated for the new wallet to reactivate the data selling status
-    function activateSGD(
-        uint256 tokenId
-    ) external onlyRecordOwner(tokenId) recordExists(tokenId) {
+    function activateSGD(uint256 tokenId) external onlyRecordOwner(tokenId) recordExists(tokenId) {
         SGDRecord storage record = _records[tokenId];
         if (record.active) revert("Error: Record is already active");
         if (latestTokenBySgdId[record.sgdId] != tokenId) revert NotLatestVersion();
 
-        // 1. Restart the operating state
         record.active = true;
 
-        bytes32 pipelineHash = keccak256(abi.encodePacked(record.rgdTokenId, record.sequencingInfo));
+        bytes32 pipelineHash = keccak256(abi.encodePacked(record.rgdTokenId, record.sequencingInfo, record.chunkIndex));
         _pipelineRegistry[pipelineHash] = PipelineStatus.Active;
 
-        // 2. Increase the version number to create a continuous history of policy changes
         record.version = record.version + 1;
 
         emit SGDVersionUpdated(
@@ -649,15 +508,12 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         );
     }
 
-    // Dedicated view function for the frontend DApp to pre-check if an SGD is purchasable.
-    // It prevents users from trying to buy a deactivated asset or one that is not the latest version.
     function isSGDPurchasable(string calldata sgdId) external view returns (bool) {
         uint256 latestTokenId = latestTokenBySgdId[sgdId];
         if (latestTokenId == 0) return false;
 
         SGDRecord storage r = _records[latestTokenId];
-
-        bytes32 pipelineHash = keccak256(abi.encodePacked(r.rgdTokenId, r.sequencingInfo));
+        bytes32 pipelineHash = keccak256(abi.encodePacked(r.rgdTokenId, r.sequencingInfo, r.chunkIndex));
 
         return (
             r.active &&
@@ -669,17 +525,11 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         return _nextTokenId;
     }
 
-    // Returns the entire version history.
-    function getVersionsOfSgd(
-        uint256 tokenId
-    ) external view returns (SGDRecord[] memory) {
+    function getVersionsOfSgd(uint256 tokenId) external view returns (SGDRecord[] memory) {
         return _versionsOfSgd[tokenId];
     }
 
-    // Checks if the current token is the latest version.
-    function isLatestVersion(
-        uint256 tokenId
-    ) external view recordExists(tokenId) returns (bool) {
+    function isLatestVersion(uint256 tokenId) external view recordExists(tokenId) returns (bool) {
         SGDRecord storage r = _records[tokenId];
         return latestTokenBySgdId[r.sgdId] == tokenId;
     }
@@ -690,8 +540,6 @@ contract GDMRegistry is Ownable, ReentrancyGuard, IERC721Receiver {
         uint256 tokenId,
         bytes calldata data
     ) external override returns (bytes4) {
-        // Record the original owner of the RGD NFT
-        // require(msg.sender == address(rgdNftContract), "Only accept from RGDNFT");
         rgdOriginalOwners[tokenId] = from;
         emit RGDReceived(operator, from, tokenId, data);
         return this.onERC721Received.selector;
