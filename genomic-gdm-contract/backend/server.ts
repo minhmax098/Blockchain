@@ -1,14 +1,10 @@
-// API /request-key 
-// verify signature, check hasPurchased, return key/iv if valid
-// API:  
-// POST /auth/challenge  
-// POST /request-key
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { exec } from "child_process";
 import { ethers } from "ethers";
 import { hasPurchased } from "./blockchain.js";
 
@@ -104,6 +100,42 @@ app.post("/request-key", async (req, res) => {
             originalFilename: record.originalFilename,
             encryptedFilename: record.encryptedFilename,
         });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// Endpoint for PRISM FHE Limited Access Computation
+app.post("/fhe/compute-limited-access", async (req, res) => {
+    try {
+        const { tokenId, buyerAddress, model } = req.body as {
+            tokenId?: number;
+            buyerAddress?: string;
+            model?: string;
+        };
+
+        const selectedModel = model || "recessive_dominant";
+
+        // Invoke PRISM FHE Compute Python Service
+        const pythonScript = path.join(__dirname, "../../fhe_compute_service.py");
+        const command = `python3 ${pythonScript}`;
+
+        exec(command, (error, stdout, stderr) => {
+            if (error) {
+                console.error(`FHE computation error: ${error.message}`);
+                return res.status(500).json({ error: "FHE computation failed", details: error.message });
+            }
+
+            return res.json({
+                success: true,
+                tokenId,
+                buyerAddress,
+                model: selectedModel,
+                output: stdout
+            });
+        });
+
     } catch (error) {
         console.error(error);
         return res.status(500).json({ error: "Internal server error" });
