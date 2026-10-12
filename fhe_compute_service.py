@@ -113,14 +113,14 @@ class PRISMEngine:
         num_bits = len(sample_cts)
 
         for j in range(num_bits):
-            diff0 = self.eval_sub(sample_cts[j], query_cts[j])
-            diff1 = self.eval_sub(query_cts[j], sample_cts[j])
-            mul0 = self.eval_mult(diff0, diff1)  # (c - q)*(q - c) = -(c - q)^2
-            match = self.eval_add(mul0, ct_not)  # 1 - (c - q)^2
-            ciphertexts_xor.append(match)
+            diff0 = self.eval_sub(sample_cts[j], query_cts[j])                    # S₁ = V − Q
+            diff1 = self.eval_sub(query_cts[j], sample_cts[j])                    # S₂ = Q − V
+            mul0 = self.eval_mult(diff0, diff1)  # (c - q)*(q - c) = -(c - q)^2    M = −(V−Q)²
+            match = self.eval_add(mul0, ct_not)  # 1 - (c - q)^2                   Rₛ = 1 − (V−Q)²
+            ciphertexts_xor.append(match) 
 
         sum_matches = self.eval_add_many(ciphertexts_xor)
-        result_diff = self.eval_sub(sum_matches, ct_num_samples)
+        result_diff = self.eval_sub(sum_matches, ct_num_samples)                  # R − E(s)
 
         # Random blinding
         random_blinding = self.get_random_vector(min_val=1, max_val=10000, length=len(result_diff.data))
@@ -169,7 +169,7 @@ class PRISMEngine:
         random_blinding0 = self.get_random_vector(min_val=1, max_val=10000, length=len(diff0.data))
         random_blinding1 = self.get_random_vector(min_val=1, max_val=10000, length=len(diff1.data))
 
-        blinded0 = self.eval_mult(diff0, random_blinding0)
+        blinded0 = self.eval_mult(diff0, random_blinding0)        # R × E(r)
         blinded1 = self.eval_mult(diff1, random_blinding1)
 
         return blinded0, blinded1
